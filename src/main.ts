@@ -17,13 +17,8 @@ mountApp(document.querySelector<HTMLDivElement>('#app')!);
 (function initThemeToggle() {
 	const button = document.getElementById('theme-toggle') as HTMLButtonElement | null;
 	if (!button) return;
-	function apply(theme: string): void {
+	function reflect(theme: string): void {
 		document.documentElement.setAttribute('data-theme', theme);
-		try {
-			localStorage.setItem('theme', theme);
-		} catch (e) {
-			// localStorage may be blocked in some embed contexts; non-fatal.
-		}
 		const isDark = theme === 'dark';
 		const icon = button!.querySelector('span');
 		const glyph = isDark ? '\u{1F319}' : '☀️';
@@ -33,10 +28,32 @@ mountApp(document.querySelector<HTMLDivElement>('#app')!);
 		button!.setAttribute('aria-pressed', isDark ? 'true' : 'false');
 		button!.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
 	}
-	const current = document.documentElement.getAttribute('data-theme') ?? 'dark';
-	apply(current);
+	function persist(theme: string): void {
+		try {
+			localStorage.setItem('theme', theme);
+		} catch (e) {
+			// localStorage may be blocked in some embed contexts; non-fatal.
+		}
+	}
+	function hasExplicitChoice(): boolean {
+		try {
+			return localStorage.getItem('theme') !== null;
+		} catch (e) {
+			return false;
+		}
+	}
+	reflect(document.documentElement.getAttribute('data-theme') ?? 'dark');
+
 	button.addEventListener('click', () => {
 		const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-		apply(next);
+		reflect(next);
+		persist(next);
+	});
+
+	// Follow OS preference changes only while the user hasn't made an explicit choice.
+	const mql = window.matchMedia?.('(prefers-color-scheme: dark)');
+	mql?.addEventListener?.('change', (e) => {
+		if (hasExplicitChoice()) return;
+		reflect(e.matches ? 'dark' : 'light');
 	});
 })();

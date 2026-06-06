@@ -43,9 +43,11 @@ function hammingWeight(bits: Uint8Array): number {
 
 // Generate a random secret error support of a given weight.
 export function makeSecret(n: number, weight: number): Uint8Array {
+	if (n <= 0) return new Uint8Array(0);
+	const target = Math.max(0, Math.min(weight, n));
 	const s = new Uint8Array(n);
 	let placed = 0;
-	while (placed < weight) {
+	while (placed < target) {
 		const idx = Math.floor(Math.random() * n);
 		if (!s[idx]) {
 			s[idx] = 1;

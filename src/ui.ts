@@ -19,13 +19,19 @@ function el<K extends keyof HTMLElementTagNameMap>(
 	return node;
 }
 
+let announceTimer: number | null = null;
 function announce(message: string): void {
 	const live = document.getElementById('live-status');
 	if (!live) return;
+	if (announceTimer !== null) {
+		window.clearTimeout(announceTimer);
+		announceTimer = null;
+	}
+	// Force re-announce by clearing first, then writing on the next tick.
 	live.textContent = '';
-	// Force re-announce by clearing first
-	window.setTimeout(() => {
+	announceTimer = window.setTimeout(() => {
 		live.textContent = message;
+		announceTimer = null;
 	}, 50);
 }
 
