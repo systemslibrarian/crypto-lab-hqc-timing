@@ -6,7 +6,7 @@ import {
 	type SimParams,
 	type AttackResult,
 } from './engine.ts';
-import { TIMELINE, DEFENSES, FACTS } from './data.ts';
+import { TIMELINE, DEFENSES, FACTS, PRESETS, type Preset } from './data.ts';
 
 function el<K extends keyof HTMLElementTagNameMap>(
 	tag: K,
@@ -90,6 +90,17 @@ function renderLab(): HTMLElement {
           <em>adds</em> one (slower). Averaging beats the noise and reveals the secret.
         </p>
       </div>
+    </div>
+
+    <div class="preset-row" role="group" aria-label="Preset scenarios">
+      <span class="preset-label">Start here:</span>
+      ${PRESETS.map(
+				(p) => `
+        <button type="button" class="preset-chip" data-preset="${p.id}" aria-label="${p.label}: ${p.desc}">
+          <span class="preset-chip-title">${p.label}</span>
+          <span class="preset-chip-desc">${p.desc}</span>
+        </button>`,
+			).join('')}
     </div>
 
     <ol class="how-steps" aria-label="How the attack works">
@@ -261,6 +272,21 @@ function renderLab(): HTMLElement {
 		const truthCells = truth
 			.map((b, i) => `<span class="bit ${b ? 'bit--set' : ''}" role="img" aria-label="Position ${i}: actual ${b}">${b}</span>`)
 			.join('');
+		const recoveredSupport: number[] = [];
+		const actualSupport: number[] = [];
+		let tp = 0;
+		let fp = 0;
+		let fn = 0;
+		for (let i = 0; i < N; i++) {
+			const r = recovered[i] === 1;
+			const t = truth[i] === 1;
+			if (r) recoveredSupport.push(i);
+			if (t) actualSupport.push(i);
+			if (r && t) tp++;
+			else if (r && !t) fp++;
+			else if (!r && t) fn++;
+		}
+		const fmtSet = (a: number[]) => (a.length ? `{${a.join(', ')}}` : '{ }');
 		const pct = (res.accuracy * 100).toFixed(0);
 		const verdict = params.constantTime
 			? 'Defense held — recovery is no better than guessing.'
@@ -270,10 +296,28 @@ function renderLab(): HTMLElement {
 					? 'Partial recovery — add queries or reduce noise to finish the job.'
 					: 'Weak signal at this noise level — raise queries per position.';
 		$('recovery').innerHTML = `
-      <p class="hero-metric-label">Recovered support</p>
-      <div class="bit-row" role="list" aria-label="Recovered secret support, ${res.bitsCorrect} of ${N} correct">${cells}</div>
-      <p class="hero-metric-label hero-metric-label--spaced">Actual secret</p>
-      <div class="bit-row" role="list" aria-label="Actual secret support">${truthCells}</div>
+      <dl class="support-summary" aria-label="Support set comparison">
+        <div class="support-row">
+          <dt>Recovered</dt>
+          <dd class="mono-block-inline">${fmtSet(recoveredSupport)}</dd>
+        </div>
+        <div class="support-row">
+          <dt>Actual</dt>
+          <dd class="mono-block-inline">${fmtSet(actualSupport)}</dd>
+        </div>
+      </dl>
+      <ul class="confusion-row" aria-label="Confusion counts">
+        <li class="confusion-cell confusion-cell--tp"><span class="confusion-val">${tp}</span><span class="confusion-label">true positive</span></li>
+        <li class="confusion-cell confusion-cell--fp"><span class="confusion-val">${fp}</span><span class="confusion-label">false positive</span></li>
+        <li class="confusion-cell confusion-cell--fn"><span class="confusion-val">${fn}</span><span class="confusion-label">false negative</span></li>
+      </ul>
+      <details class="bit-details">
+        <summary>Show bit-by-bit comparison</summary>
+        <p class="hero-metric-label hero-metric-label--spaced">Recovered support</p>
+        <div class="bit-row" role="list" aria-label="Recovered secret support bit row">${cells}</div>
+        <p class="hero-metric-label hero-metric-label--spaced">Actual secret</p>
+        <div class="bit-row" role="list" aria-label="Actual secret support bit row">${truthCells}</div>
+      </details>
       <p class="recovery-stat"><strong>${res.bitsCorrect}/${N}</strong> bits correct · ${pct}%</p>
       <p class="recovery-stat">${res.totalQueries.toLocaleString()} timed queries</p>
       <p class="panel-copy">${verdict}</p>
@@ -333,7 +377,28 @@ function renderLab(): HTMLElement {
 		e.preventDefault();
 		run();
 	});
-	queueMicrotask(run); // alive on load
+
+	function applyPreset(p: Preset): void {
+		weight.value = String(p.weight);
+		noise.value = String(p.noise);
+		trials.value = String(p.trials);
+		ct.checked = p.constantTime;
+		sync();
+		section.querySelectorAll<HTMLButtonElement>('.preset-chip').forEach((b) => {
+			const isActive = b.dataset['preset'] === p.id;
+			b.classList.toggle('is-active', isActive);
+			b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+		});
+		run();
+	}
+	section.querySelectorAll<HTMLButtonElement>('.preset-chip').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const id = btn.dataset['preset'];
+			const preset = PRESETS.find((p) => p.id === id);
+			if (preset) applyPreset(preset);
+		});
+	});
+	queueMicrotask(() => applyPreset(PRESETS[0]!)); // alive on load with the "Easy break" preset
 
 	void decode; // exported for console experimentation
 	return section;
@@ -343,8 +408,11 @@ function renderLab(): HTMLElement {
 function renderTimeline(): HTMLElement {
 	const section = el('section', 'lab-section');
 	section.setAttribute('aria-labelledby', 'timeline-heading');
-	const items = TIMELINE.map(
-		(t) => `
+	const items = TIMELINE.map((t) => {
+		const cite = t.source
+			? `<p class="attack-source"><a href="${t.source.url}" rel="noopener" target="_blank">${t.source.label} <span aria-hidden="true">↗</span></a></p>`
+			: '';
+		return `
     <article class="attack-step">
       <div class="attack-year" aria-hidden="true">${t.year}</div>
       <div class="attack-body">
@@ -353,9 +421,10 @@ function renderTimeline(): HTMLElement {
           <span class="vs-chip vs-chip--tie">${t.leak}</span>
         </div>
         <p class="panel-copy">${t.body}</p>
+        ${cite}
       </div>
-    </article>`,
-	).join('');
+    </article>`;
+	}).join('');
 	section.innerHTML = `
     <div class="section-heading-row">
       <div>

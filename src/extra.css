@@ -185,6 +185,78 @@
   margin-top: 20px;
 }
 
+/* --- preset chips ------------------------------------------- */
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+  margin: 22px 0 0;
+  padding: 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--accent-3) 6%, transparent);
+}
+
+.preset-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.preset-chip {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 160px;
+  min-width: 140px;
+  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-strong);
+  color: var(--ink-strong);
+  font-family: var(--sans);
+  font-weight: 600;
+  min-height: var(--tap-target);
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.preset-chip:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+  box-shadow: var(--shadow-soft);
+}
+
+.preset-chip.is-active {
+  background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 60%, black));
+  color: #fff9f2;
+  border-color: transparent;
+}
+
+.preset-chip.is-active .preset-chip-desc {
+  color: rgba(255, 249, 242, 0.86);
+}
+
+.preset-chip-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.preset-chip-desc {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
 /* --- how-it-works steps ------------------------------------- */
 
 .how-steps {
@@ -384,6 +456,120 @@
 
 .recovery-out { margin-top: 8px; }
 
+.support-summary {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 8px;
+}
+
+.support-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.support-row dt {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding-top: 6px;
+}
+
+.support-row dd {
+  margin: 0;
+}
+
+.mono-block-inline {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--mono-block-bg);
+  color: var(--mono-block-fg);
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.confusion-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.confusion-cell {
+  display: grid;
+  gap: 2px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+.confusion-val {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-strong);
+}
+
+.confusion-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.confusion-cell--tp { border-color: color-mix(in oklab, var(--accent-4) 40%, var(--line)); }
+.confusion-cell--tp .confusion-val { color: var(--accent-4); }
+
+.confusion-cell--fp { border-color: color-mix(in oklab, var(--accent-2) 40%, var(--line)); }
+.confusion-cell--fp .confusion-val { color: var(--accent-2); }
+
+.confusion-cell--fn { border-color: color-mix(in oklab, var(--accent-3) 50%, var(--line)); }
+.confusion-cell--fn .confusion-val { color: var(--accent-3); }
+
+.bit-details {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+}
+
+.bit-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink-strong);
+  list-style: none;
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bit-details summary::-webkit-details-marker { display: none; }
+
+.bit-details summary::before {
+  content: '▸';
+  display: inline-block;
+  transition: transform 180ms ease;
+  color: var(--accent);
+}
+
+.bit-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .bit-row {
   display: flex;
   flex-wrap: wrap;
@@ -493,6 +679,23 @@
 .attack-step .panel-header {
   align-items: center;
   gap: 10px;
+}
+
+.attack-source {
+  margin: 10px 0 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.attack-source a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in oklab, var(--accent) 50%, transparent);
+  padding-bottom: 1px;
+}
+
+.attack-source a:hover {
+  border-bottom-style: solid;
 }
 
 /* --- trait lists -------------------------------------------- */
