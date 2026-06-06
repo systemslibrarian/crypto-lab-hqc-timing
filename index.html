@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = saved || (prefersDark ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b7fab" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#12101a" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Interactive HQC timing side-channel demo — how a non-constant-time code-based decoder leaks the error weight, how a timing oracle exploits it, and how constant-time decoding removes the leak."
+    />
+    <meta name="author" content="systemslibrarian" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="HQC Timing Side-Channel — crypto-lab" />
+    <meta
+      property="og:description"
+      content="An interactive lab: how a non-constant-time HQC decoder leaks the secret through timing, and how constant-time defense closes the channel."
+    />
+    <meta property="og:url" content="https://systemslibrarian.github.io/crypto-lab-hqc-timing/" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="HQC Timing Side-Channel — crypto-lab" />
+    <meta
+      name="twitter:description"
+      content="Interactive lab: timing oracle attack on HQC, and the constant-time fix that closes it."
+    />
+
+    <link rel="canonical" href="https://systemslibrarian.github.io/crypto-lab-hqc-timing/" />
+
+    <title>HQC Timing Side-Channel — crypto-lab</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#playground-heading">Skip to interactive lab</a>
+    <div id="app"></div>
+    <div id="live-status" class="sr-only" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
