@@ -176,6 +176,70 @@
   flex: 1 1 140px;
 }
 
+/* --- seed chip ---------------------------------------------- */
+
+.seed-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--input-bg);
+}
+
+.seed-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.seed-value {
+  flex: 1 1 9rem;
+  min-width: 9rem;
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: var(--ink-strong);
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--mono-block-bg);
+  color: var(--mono-block-fg);
+  letter-spacing: 0.06em;
+}
+
+.seed-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-strong);
+  color: var(--ink-strong);
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-height: 36px;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.seed-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+}
+
+.seed-button.is-locked {
+  background: color-mix(in oklab, var(--accent-3) 24%, var(--panel-strong));
+  border-color: color-mix(in oklab, var(--accent-3) 50%, var(--line));
+  color: var(--ink-strong);
+}
+
+.seed-icon { font-size: 0.95rem; line-height: 1; }
+
 /* --- results ------------------------------------------------ */
 
 .lab-results {
@@ -184,6 +248,24 @@
   gap: 18px;
   margin-top: 20px;
 }
+
+.result-column {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.lab-results--compare .panel-card {
+  min-width: 0;
+}
+
+/* disabled toggle (when compare mode owns the CT state) */
+.toggle-wrap.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-wrap.is-disabled input { pointer-events: none; }
 
 /* --- preset chips ------------------------------------------- */
 
@@ -778,9 +860,22 @@
   .control-group--actions {
     grid-column: span 3;
   }
-  .control-group--toggle { grid-column: span 3; }
-  .lab-results {
-    grid-template-columns: 1fr minmax(260px, 340px);
+  .control-group--toggle {
+    grid-column: span 3;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .lab-results--single {
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  }
+  .lab-results--single .result-column {
+    display: contents;
+  }
+
+  .lab-results--compare {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

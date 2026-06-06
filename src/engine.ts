@@ -10,11 +10,18 @@
 //   * a decoder whose time ~ f(error weight) + measurement noise
 //   * a constant-time mode that removes the weight dependence
 //   * a timing-oracle attack that recovers the secret from many timed queries.
+//
+// All randomness flows through an injectable RNG so a given seed reproduces
+// the same secret + the same noise sequence — required for the side-by-side
+// vulnerable-vs-defended comparison to be a fair test of the defense.
+
+export type Rng = () => number;
 
 export interface SimParams {
 	n: number; // codeword length (small, for teaching)
 	noise: number; // measurement noise std-dev, in "time units"
 	constantTime: boolean;
+	rng?: Rng;
 }
 
 export interface DecodeResult {
@@ -23,15 +30,34 @@ export interface DecodeResult {
 	idealTime: number; // noise-free time
 }
 
-// Per-position work the non-constant-time decoder does for each error it fixes.
-const TIME_PER_ERROR = 8.0; // time units per error position
-const BASE_TIME = 20.0; // fixed decoder overhead
-const CT_TIME = 84.0; // flat time when constant-time (== worst case)
+const TIME_PER_ERROR = 8.0;
+const BASE_TIME = 20.0;
+const CT_TIME = 84.0;
 
-function gaussianNoise(std: number): number {
+// Mulberry32 — small, fast, good enough for visualization.
+export function createRng(seed: number): Rng {
+	let a = (seed >>> 0) || 1;
+	return function () {
+		a = (a + 0x6d2b79f5) >>> 0;
+		let t = a;
+		t = Math.imul(t ^ (t >>> 15), t | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+export function randomSeed(): number {
+	return (Math.random() * 0xffffffff) >>> 0;
+}
+
+export function formatSeed(seed: number): string {
+	return '0x' + (seed >>> 0).toString(16).padStart(8, '0');
+}
+
+function gaussianNoise(std: number, rng: Rng): number {
 	// Box–Muller
-	const u = 1 - Math.random();
-	const v = Math.random();
+	const u = 1 - rng();
+	const v = rng();
 	return std * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
@@ -42,13 +68,13 @@ function hammingWeight(bits: Uint8Array): number {
 }
 
 // Generate a random secret error support of a given weight.
-export function makeSecret(n: number, weight: number): Uint8Array {
+export function makeSecret(n: number, weight: number, rng: Rng = Math.random): Uint8Array {
 	if (n <= 0) return new Uint8Array(0);
 	const target = Math.max(0, Math.min(weight, n));
 	const s = new Uint8Array(n);
 	let placed = 0;
 	while (placed < target) {
-		const idx = Math.floor(Math.random() * n);
+		const idx = Math.floor(rng() * n);
 		if (!s[idx]) {
 			s[idx] = 1;
 			placed++;
@@ -65,26 +91,22 @@ export function decode(
 	params: SimParams,
 ): DecodeResult {
 	const n = params.n;
+	const rng = params.rng ?? Math.random;
 	const err = new Uint8Array(n);
 	for (let i = 0; i < n; i++) err[i] = (secret[i] ^ injected[i]) & 1;
 	const weight = hammingWeight(err);
 
 	let idealTime: number;
 	if (params.constantTime) {
-		idealTime = CT_TIME; // always worst-case work, regardless of weight
+		idealTime = CT_TIME;
 	} else {
 		idealTime = BASE_TIME + weight * TIME_PER_ERROR;
 	}
-	const time = Math.max(0, idealTime + gaussianNoise(params.noise));
+	const time = Math.max(0, idealTime + gaussianNoise(params.noise, rng));
 	return { weight, time, idealTime };
 }
 
 // --- timing oracle attack --------------------------------------------------
-// For each position i, the attacker flips bit i (injected[i]=1) and times the
-// decode. If position i was already a secret error, flipping it REMOVES an
-// error (weight goes down -> faster). If it was clean, flipping ADDS an error
-// (weight goes up -> slower). Averaging many trials beats the noise. The
-// per-position mean time, compared to the global mean, reveals the secret bit.
 
 export interface AttackProgress {
 	position: number;
@@ -122,12 +144,10 @@ export function timingAttack(
 		meanTimes.push(sum / trialsPerPosition);
 	}
 
-	// threshold = midpoint between global min/max mean (robust enough here)
 	const lo = Math.min(...meanTimes);
 	const hi = Math.max(...meanTimes);
 	const threshold = (lo + hi) / 2;
 
-	// flipping a TRUE error position lowers weight -> faster -> below threshold.
 	const recovered = new Uint8Array(n);
 	const perPosition: AttackProgress[] = [];
 	let correct = 0;

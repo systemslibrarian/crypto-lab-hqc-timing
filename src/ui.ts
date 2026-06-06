@@ -3,6 +3,9 @@ import {
 	makeSecret,
 	timingAttack,
 	decode,
+	createRng,
+	randomSeed,
+	formatSeed,
 	type SimParams,
 	type AttackResult,
 } from './engine.ts';
@@ -27,7 +30,6 @@ function announce(message: string): void {
 		window.clearTimeout(announceTimer);
 		announceTimer = null;
 	}
-	// Force re-announce by clearing first, then writing on the next tick.
 	live.textContent = '';
 	announceTimer = window.setTimeout(() => {
 		live.textContent = message;
@@ -175,6 +177,26 @@ function renderLab(): HTMLElement {
             <span class="control-help">flatten every decode to worst-case work</span>
           </span>
         </label>
+        <label class="toggle-wrap" for="compare">
+          <input id="compare" name="compare" type="checkbox" />
+          <span class="toggle-text">
+            <span class="toggle-title">Side-by-side</span>
+            <span class="control-help">render vulnerable and defended on the same secret</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="seed-row" role="group" aria-label="Run reproducibility">
+        <span class="seed-label">Seed</span>
+        <span id="seed-value" class="seed-value" aria-live="polite">—</span>
+        <button id="seed-lock" type="button" class="seed-button" aria-pressed="false" aria-label="Lock seed so the same secret is reused on each run">
+          <span class="seed-icon" aria-hidden="true">🔓</span>
+          <span class="seed-button-text">Lock</span>
+        </button>
+        <button id="seed-copy" type="button" class="seed-button" aria-label="Copy seed to clipboard">
+          <span class="seed-icon" aria-hidden="true">⧉</span>
+          <span class="seed-button-text">Copy</span>
+        </button>
       </div>
 
       <div class="control-group control-group--actions">
@@ -189,30 +211,7 @@ function renderLab(): HTMLElement {
       </div>
     </form>
 
-    <div class="lab-results">
-      <div class="panel-card panel-card--wide">
-        <div class="panel-header">
-          <h3 id="chart-heading">Per-position mean decode time</h3>
-          <span id="verdict-chip" class="vs-chip vs-chip--tie" role="status">Not run</span>
-        </div>
-        <p class="panel-copy" id="chart-desc">Bars below the threshold line are guessed as secret-error positions.</p>
-        <ul class="chart-legend" aria-label="Chart legend">
-          <li><span class="legend-swatch legend-swatch--hit" aria-hidden="true"></span>Correct error guess</li>
-          <li><span class="legend-swatch legend-swatch--miss" aria-hidden="true"></span>Wrong guess</li>
-          <li><span class="legend-swatch legend-swatch--clean" aria-hidden="true"></span>Guessed clean</li>
-          <li><span class="legend-swatch legend-swatch--thr" aria-hidden="true"></span>Threshold</li>
-        </ul>
-        <div id="chart" class="timing-chart" role="img" aria-labelledby="chart-heading" aria-describedby="chart-desc chart-summary"></div>
-        <p id="chart-summary" class="sr-only" aria-live="polite"></p>
-      </div>
-
-      <div class="panel-card">
-        <h3 id="recovery-heading">Recovery</h3>
-        <div id="recovery" class="recovery-out" aria-labelledby="recovery-heading">
-          <p class="panel-copy">Run the attack to recover the secret support.</p>
-        </div>
-      </div>
-    </div>
+    <div id="lab-results" class="lab-results" aria-live="off"></div>
   `;
 
 	const $ = (id: string) => section.querySelector('#' + id) as HTMLElement;
@@ -220,8 +219,13 @@ function renderLab(): HTMLElement {
 	const noise = $('noise') as HTMLInputElement;
 	const trials = $('trials') as HTMLInputElement;
 	const ct = $('ct') as HTMLInputElement;
+	const compare = $('compare') as HTMLInputElement;
 	const runBtn = $('run') as HTMLButtonElement;
 	const rerollBtn = $('reroll') as HTMLButtonElement;
+	const seedLockBtn = $('seed-lock') as HTMLButtonElement;
+	const seedCopyBtn = $('seed-copy') as HTMLButtonElement;
+	const seedValue = $('seed-value');
+	const labResults = $('lab-results');
 	const form = $('lab-controls') as HTMLFormElement;
 
 	const sync = () => {
@@ -233,9 +237,34 @@ function renderLab(): HTMLElement {
 
 	const N = 32;
 
-	function drawChart(res: AttackResult, params: SimParams): void {
+	let currentSeed = randomSeed();
+	let seedLocked = false;
+
+	function refreshSeedChip(): void {
+		seedValue.textContent = formatSeed(currentSeed);
+		seedLockBtn.setAttribute('aria-pressed', seedLocked ? 'true' : 'false');
+		seedLockBtn.classList.toggle('is-locked', seedLocked);
+		const icon = seedLockBtn.querySelector('.seed-icon');
+		const text = seedLockBtn.querySelector('.seed-button-text');
+		if (icon) icon.textContent = seedLocked ? '🔒' : '🔓';
+		if (text) text.textContent = seedLocked ? 'Locked' : 'Lock';
+		seedLockBtn.setAttribute(
+			'aria-label',
+			seedLocked ? 'Unlock seed and randomize on next run' : 'Lock seed so the same secret is reused on each run',
+		);
+	}
+
+	function reflectCompareMode(): void {
+		const inCompare = compare.checked;
+		ct.disabled = inCompare;
+		ct.parentElement?.classList.toggle('is-disabled', inCompare);
+		labResults.classList.toggle('lab-results--compare', inCompare);
+		labResults.classList.toggle('lab-results--single', !inCompare);
+	}
+
+	function bars(res: AttackResult): string {
 		const max = Math.max(...res.perPosition.map((p) => p.meanTime), res.threshold) * 1.08;
-		const bars = res.perPosition
+		return res.perPosition
 			.map((p) => {
 				const h = Math.max(2, (p.meanTime / max) * 100);
 				const cls = p.guessedBit === 1 ? (p.correct ? 'bar--hit' : 'bar--miss') : 'bar--clean';
@@ -243,28 +272,36 @@ function renderLab(): HTMLElement {
 				return `<div class="bar ${cls}" style="--bar-height:${h}%" role="presentation" title="pos ${p.position}: ${p.meanTime.toFixed(1)} → ${p.guessedBit}${p.correct ? ' ✓' : ' ✗'}" aria-label="${label}"></div>`;
 			})
 			.join('');
+	}
+
+	function chartMarkup(res: AttackResult, params: SimParams, idSuffix: string): string {
+		const max = Math.max(...res.perPosition.map((p) => p.meanTime), res.threshold) * 1.08;
 		const thrPct = (res.threshold / max) * 100;
 		const ticks = Array.from({ length: N }, (_, i) =>
 			i % 4 === 0
 				? `<span class="chart-tick" aria-hidden="true">${i}</span>`
 				: '<span class="chart-tick chart-tick--blank" aria-hidden="true"></span>',
 		).join('');
-		$('chart').innerHTML = `
-      <div class="chart-area">
-        <div class="threshold-line" style="bottom:${thrPct}%"><span>threshold</span></div>
-        ${bars}
-      </div>
-      <div class="chart-axis" aria-hidden="true">${ticks}</div>
-      <p class="section-footnote">${params.constantTime ? 'Constant-time: every position does the same work, so the bars are flat — nothing to threshold.' : 'Vulnerable: error positions decode faster, dropping below the threshold.'}</p>
-    `;
 		const summary = params.constantTime
 			? `Bars are flat — the constant-time defense removes the signal. ${res.bitsCorrect} of ${N} bits guessed correctly, no better than chance.`
 			: `${res.bitsCorrect} of ${N} bits recovered. Bars below the timing threshold are guessed as secret-error positions.`;
-		const sumEl = section.querySelector('#chart-summary');
-		if (sumEl) sumEl.textContent = summary;
+		const footnote = params.constantTime
+			? 'Constant-time: every position does the same work, so the bars are flat — nothing to threshold.'
+			: 'Vulnerable: error positions decode faster, dropping below the threshold.';
+		return `
+      <div class="timing-chart">
+        <div class="chart-area">
+          <div class="threshold-line" style="bottom:${thrPct}%"><span>threshold</span></div>
+          ${bars(res)}
+        </div>
+        <div class="chart-axis" aria-hidden="true">${ticks}</div>
+        <p class="section-footnote">${footnote}</p>
+        <p id="chart-summary-${idSuffix}" class="sr-only">${summary}</p>
+      </div>
+    `;
 	}
 
-	function renderRecovery(res: AttackResult, secret: Uint8Array, params: SimParams): void {
+	function recoveryMarkup(res: AttackResult, secret: Uint8Array, params: SimParams): string {
 		const recovered = Array.from(res.recovered);
 		const truth = Array.from(secret);
 		const cells = recovered
@@ -301,7 +338,7 @@ function renderLab(): HTMLElement {
 				: res.accuracy > 0.7
 					? 'Partial recovery — add queries or reduce noise to finish the job.'
 					: 'Weak signal at this noise level — raise queries per position.';
-		$('recovery').innerHTML = `
+		return `
       <dl class="support-summary" aria-label="Support set comparison">
         <div class="support-row">
           <dt>Recovered</dt>
@@ -328,41 +365,137 @@ function renderLab(): HTMLElement {
       <p class="recovery-stat">${res.totalQueries.toLocaleString()} timed queries</p>
       <p class="panel-copy">${verdict}</p>
     `;
-		const chip = $('verdict-chip');
-		if (params.constantTime) {
-			chip.className = 'vs-chip vs-chip--stark';
-			chip.textContent = 'Defended';
-		} else if (res.accuracy > 0.95) {
-			chip.className = 'vs-chip vs-chip--snark';
-			chip.textContent = 'Key recovered';
-		} else {
-			chip.className = 'vs-chip vs-chip--tie';
-			chip.textContent = 'Partial';
-		}
-		const announcement = params.constantTime
-			? `Attack complete. Constant-time defense held. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
-			: `Attack complete. ${res.bitsCorrect} of ${N} bits recovered, ${pct}% accuracy.`;
-		announce(announcement);
+	}
+
+	function chipFor(res: AttackResult, params: SimParams): { cls: string; text: string } {
+		if (params.constantTime) return { cls: 'vs-chip vs-chip--stark', text: 'Defended' };
+		if (res.accuracy > 0.95) return { cls: 'vs-chip vs-chip--snark', text: 'Key recovered' };
+		return { cls: 'vs-chip vs-chip--tie', text: 'Partial' };
+	}
+
+	function renderSingleResult(secret: Uint8Array, res: AttackResult, params: SimParams): void {
+		const chip = chipFor(res, params);
+		labResults.innerHTML = `
+      <div class="result-column">
+        <div class="panel-card panel-card--wide">
+          <div class="panel-header">
+            <h3 id="chart-heading">Per-position mean decode time</h3>
+            <span class="${chip.cls}" role="status">${chip.text}</span>
+          </div>
+          <p class="panel-copy">Bars below the threshold line are guessed as secret-error positions.</p>
+          <ul class="chart-legend" aria-label="Chart legend">
+            <li><span class="legend-swatch legend-swatch--hit" aria-hidden="true"></span>Correct error guess</li>
+            <li><span class="legend-swatch legend-swatch--miss" aria-hidden="true"></span>Wrong guess</li>
+            <li><span class="legend-swatch legend-swatch--clean" aria-hidden="true"></span>Guessed clean</li>
+            <li><span class="legend-swatch legend-swatch--thr" aria-hidden="true"></span>Threshold</li>
+          </ul>
+          ${chartMarkup(res, params, 'single')}
+        </div>
+        <div class="panel-card">
+          <h3>Recovery</h3>
+          <div class="recovery-out">${recoveryMarkup(res, secret, params)}</div>
+        </div>
+      </div>
+    `;
+		const pct = (res.accuracy * 100).toFixed(0);
+		announce(
+			params.constantTime
+				? `Attack complete. Constant-time defense held. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
+				: `Attack complete. ${res.bitsCorrect} of ${N} bits recovered, ${pct}% accuracy.`,
+		);
+	}
+
+	function renderCompareResult(
+		secret: Uint8Array,
+		vulnRes: AttackResult,
+		safeRes: AttackResult,
+		vulnParams: SimParams,
+		safeParams: SimParams,
+	): void {
+		const vulnChip = chipFor(vulnRes, vulnParams);
+		const safeChip = chipFor(safeRes, safeParams);
+		labResults.innerHTML = `
+      <div class="result-column">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Vulnerable decoder</h3>
+            <span class="${vulnChip.cls}" role="status">${vulnChip.text}</span>
+          </div>
+          ${chartMarkup(vulnRes, vulnParams, 'vuln')}
+        </div>
+        <div class="panel-card">
+          <h3>Vulnerable recovery</h3>
+          <div class="recovery-out">${recoveryMarkup(vulnRes, secret, vulnParams)}</div>
+        </div>
+      </div>
+      <div class="result-column">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Constant-time decoder</h3>
+            <span class="${safeChip.cls}" role="status">${safeChip.text}</span>
+          </div>
+          ${chartMarkup(safeRes, safeParams, 'safe')}
+        </div>
+        <div class="panel-card">
+          <h3>Defended recovery</h3>
+          <div class="recovery-out">${recoveryMarkup(safeRes, secret, safeParams)}</div>
+        </div>
+      </div>
+    `;
+		const vp = (vulnRes.accuracy * 100).toFixed(0);
+		const sp = (safeRes.accuracy * 100).toFixed(0);
+		announce(
+			`Side-by-side complete. Vulnerable: ${vulnRes.bitsCorrect} of ${N} bits, ${vp}%. Constant-time: ${safeRes.bitsCorrect} of ${N} bits, ${sp}%.`,
+		);
 	}
 
 	function run(): void {
+		if (!seedLocked) currentSeed = randomSeed();
+		refreshSeedChip();
+
 		runBtn.disabled = true;
 		runBtn.classList.add('is-running');
 		runBtn.setAttribute('aria-busy', 'true');
 		announce('Running timing attack…');
-		// Yield to paint a busy state before the heavier compute.
+
 		window.setTimeout(() => {
 			try {
-				const params: SimParams = {
-					n: N,
-					noise: parseFloat(noise.value),
-					constantTime: ct.checked,
-				};
 				const w = parseInt(weight.value, 10);
-				const secret = makeSecret(N, w);
-				const res = timingAttack(secret, params, parseInt(trials.value, 10));
-				drawChart(res, params);
-				renderRecovery(res, secret, params);
+				const noiseVal = parseFloat(noise.value);
+				const trialsVal = parseInt(trials.value, 10);
+
+				// Secret + noise streams derived deterministically from currentSeed.
+				const secretRng = createRng(currentSeed);
+				const secret = makeSecret(N, w, secretRng);
+				const noiseSeed = (currentSeed ^ 0xa5a5a5a5) >>> 0;
+
+				if (compare.checked) {
+					// Use a fresh RNG per side, both seeded identically -> identical noise sequence.
+					const vulnParams: SimParams = {
+						n: N,
+						noise: noiseVal,
+						constantTime: false,
+						rng: createRng(noiseSeed),
+					};
+					const safeParams: SimParams = {
+						n: N,
+						noise: noiseVal,
+						constantTime: true,
+						rng: createRng(noiseSeed),
+					};
+					const vulnRes = timingAttack(secret, vulnParams, trialsVal);
+					const safeRes = timingAttack(secret, safeParams, trialsVal);
+					renderCompareResult(secret, vulnRes, safeRes, vulnParams, safeParams);
+				} else {
+					const params: SimParams = {
+						n: N,
+						noise: noiseVal,
+						constantTime: ct.checked,
+						rng: createRng(noiseSeed),
+					};
+					const res = timingAttack(secret, params, trialsVal);
+					renderSingleResult(secret, res, params);
+				}
 			} finally {
 				runBtn.disabled = false;
 				runBtn.classList.remove('is-running');
@@ -381,7 +514,37 @@ function renderLab(): HTMLElement {
 	});
 	rerollBtn.addEventListener('click', (e) => {
 		e.preventDefault();
+		// Force a new seed regardless of lock state.
+		currentSeed = randomSeed();
+		const wasLocked = seedLocked;
+		seedLocked = false;
 		run();
+		seedLocked = wasLocked;
+		refreshSeedChip();
+	});
+	compare.addEventListener('change', () => {
+		reflectCompareMode();
+		run();
+	});
+	seedLockBtn.addEventListener('click', () => {
+		seedLocked = !seedLocked;
+		refreshSeedChip();
+	});
+	seedCopyBtn.addEventListener('click', async () => {
+		const text = formatSeed(currentSeed);
+		try {
+			await navigator.clipboard.writeText(text);
+			const original = seedCopyBtn.querySelector('.seed-button-text');
+			if (original) {
+				const prev = original.textContent;
+				original.textContent = 'Copied';
+				window.setTimeout(() => {
+					if (original) original.textContent = prev;
+				}, 1200);
+			}
+		} catch (e) {
+			// Clipboard unavailable; non-fatal.
+		}
 	});
 
 	function applyPreset(p: Preset): void {
@@ -404,7 +567,10 @@ function renderLab(): HTMLElement {
 			if (preset) applyPreset(preset);
 		});
 	});
-	queueMicrotask(() => applyPreset(PRESETS[0]!)); // alive on load with the "Easy break" preset
+
+	refreshSeedChip();
+	reflectCompareMode();
+	queueMicrotask(() => applyPreset(PRESETS[0]!));
 
 	void decode; // exported for console experimentation
 	return section;
