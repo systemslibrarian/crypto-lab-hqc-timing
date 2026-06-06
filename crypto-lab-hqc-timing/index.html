@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function () {
+        const saved = localStorage.getItem('theme');
+        document.documentElement.setAttribute('data-theme', saved ?? 'dark');
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Interactive HQC timing side-channel demo — how a non-constant-time code-based decoder leaks the error weight, how a timing oracle exploits it, and how constant-time decoding removes the leak."
+    />
+    <title>HQC Timing Side-Channel — crypto-lab</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#playground-heading">Skip to content</a>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
