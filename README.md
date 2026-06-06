@@ -36,13 +36,15 @@ Set the secret error weight, the measurement noise, and how many timed queries t
 
 ## Tech
 
-Vite + TypeScript, zero runtime dependencies. `src/engine.ts` implements the timing simulation and the timing-oracle attack; `src/data.ts` holds the attack timeline and defenses; `src/ui.ts` is the interactive lab. Dark mode by default with a persisted theme toggle.
+Vite + TypeScript, zero runtime dependencies. `src/engine.ts` implements the timing simulation and the timing-oracle attack; `src/data.ts` holds the attack timeline and defenses; `src/ui.ts` is the interactive lab. Dark mode follows your OS preference on first load and is toggleable + persisted. The UI is mobile-first (44 px tap targets, fluid type, stacking layout), keyboard-accessible (skip link, visible focus rings, ARIA labels on every region), and respects `prefers-reduced-motion`, `forced-colors`, and print.
 
 ```bash
 npm install
 npm run dev      # local dev server
 npm run build    # type-check + production build to dist/
 ```
+
+GitHub Pages deployment runs on every push to `main` via `.github/workflows/deploy.yml` (build → upload artifact → deploy).
 
 ---
 

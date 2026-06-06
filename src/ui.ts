@@ -92,6 +92,30 @@ function renderLab(): HTMLElement {
       </div>
     </div>
 
+    <ol class="how-steps" aria-label="How the attack works">
+      <li class="how-step">
+        <span class="how-step-num" aria-hidden="true">1</span>
+        <div>
+          <h3>Inject</h3>
+          <p>Flip a single bit at position <span class="mono-inline">i</span> of a chosen ciphertext.</p>
+        </div>
+      </li>
+      <li class="how-step">
+        <span class="how-step-num" aria-hidden="true">2</span>
+        <div>
+          <h3>Measure</h3>
+          <p>Time the decode. Run it many times; the mean cancels noise.</p>
+        </div>
+      </li>
+      <li class="how-step">
+        <span class="how-step-num" aria-hidden="true">3</span>
+        <div>
+          <h3>Threshold</h3>
+          <p>Bars below the threshold are guessed as secret-error positions.</p>
+        </div>
+      </li>
+    </ol>
+
     <form class="control-bar" id="lab-controls" aria-label="Attack simulation controls" onsubmit="return false">
       <div class="control-group">
         <label for="weight">Secret error weight
@@ -137,6 +161,10 @@ function renderLab(): HTMLElement {
       </div>
 
       <div class="control-group control-group--actions">
+        <button id="reroll" class="ghost-button" type="button" aria-label="Generate a new random secret and re-run">
+          <span aria-hidden="true">↻</span>
+          <span>New secret</span>
+        </button>
         <button id="run" class="action-button" type="submit">
           <span aria-hidden="true">▶</span>
           <span>Run timing attack</span>
@@ -150,7 +178,13 @@ function renderLab(): HTMLElement {
           <h3 id="chart-heading">Per-position mean decode time</h3>
           <span id="verdict-chip" class="vs-chip vs-chip--tie" role="status">Not run</span>
         </div>
-        <p class="panel-copy" id="chart-desc">Bars below the threshold line are guessed as secret-error positions. Green = correct guess, red = wrong, dim = guessed clean.</p>
+        <p class="panel-copy" id="chart-desc">Bars below the threshold line are guessed as secret-error positions.</p>
+        <ul class="chart-legend" aria-label="Chart legend">
+          <li><span class="legend-swatch legend-swatch--hit" aria-hidden="true"></span>Correct error guess</li>
+          <li><span class="legend-swatch legend-swatch--miss" aria-hidden="true"></span>Wrong guess</li>
+          <li><span class="legend-swatch legend-swatch--clean" aria-hidden="true"></span>Guessed clean</li>
+          <li><span class="legend-swatch legend-swatch--thr" aria-hidden="true"></span>Threshold</li>
+        </ul>
         <div id="chart" class="timing-chart" role="img" aria-labelledby="chart-heading" aria-describedby="chart-desc chart-summary"></div>
         <p id="chart-summary" class="sr-only" aria-live="polite"></p>
       </div>
@@ -170,6 +204,7 @@ function renderLab(): HTMLElement {
 	const trials = $('trials') as HTMLInputElement;
 	const ct = $('ct') as HTMLInputElement;
 	const runBtn = $('run') as HTMLButtonElement;
+	const rerollBtn = $('reroll') as HTMLButtonElement;
 	const form = $('lab-controls') as HTMLFormElement;
 
 	const sync = () => {
@@ -192,11 +227,17 @@ function renderLab(): HTMLElement {
 			})
 			.join('');
 		const thrPct = (res.threshold / max) * 100;
+		const ticks = Array.from({ length: N }, (_, i) =>
+			i % 4 === 0
+				? `<span class="chart-tick" aria-hidden="true">${i}</span>`
+				: '<span class="chart-tick chart-tick--blank" aria-hidden="true"></span>',
+		).join('');
 		$('chart').innerHTML = `
       <div class="chart-area">
         <div class="threshold-line" style="bottom:${thrPct}%"><span>threshold</span></div>
         ${bars}
       </div>
+      <div class="chart-axis" aria-hidden="true">${ticks}</div>
       <p class="section-footnote">${params.constantTime ? 'Constant-time: every position does the same work, so the bars are flat — nothing to threshold.' : 'Vulnerable: error positions decode faster, dropping below the threshold.'}</p>
     `;
 		const summary = params.constantTime
@@ -285,6 +326,10 @@ function renderLab(): HTMLElement {
 		run();
 	});
 	runBtn.addEventListener('click', (e) => {
+		e.preventDefault();
+		run();
+	});
+	rerollBtn.addEventListener('click', (e) => {
 		e.preventDefault();
 		run();
 	});
