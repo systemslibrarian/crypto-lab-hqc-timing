@@ -14,7 +14,7 @@ An interactive demonstration of the timing side-channel that has repeatedly thre
 
 ## Live Demo
 
-[**https://systemslibrarian.github.io/crypto-lab-hqc-timing/**](https://systemslibrarian.github.io/crypto-lab-hqc-timing/)
+**[systemslibrarian.github.io/crypto-lab-hqc-timing](https://systemslibrarian.github.io/crypto-lab-hqc-timing/)**
 
 Set the secret error weight, the measurement noise, and how many timed queries to average per position, then run the timing-oracle attack. The chart shows the mean decode time for each codeword position; positions that fall below the threshold line are guessed as secret-error positions (green when correct, red when wrong). The recovery panel compares the recovered support against the true secret and reports the bit accuracy and query count. Toggle the constant-time defense and re-run: every position now does the same work, the bars flatten, and recovery drops to coin-flip. Below the lab, a timeline walks through four real HQC timing leaks (2020 BCH decoder, 2022 rejection sampling, 2024 division instruction, 2026 compiler-induced), followed by a do/don't guide to closing the channel.
 
@@ -34,6 +34,23 @@ Set the secret error weight, the measurement noise, and how many timed queries t
 - **Binary-level constant-time verification** — tooling and CI checks that inspect compiled output for secret-dependent branches, motivated by the 2026 compiler-induced leak.
 - **Chosen-ciphertext hardening (FO transform)** — the Fujisaki-Okamoto transform gives CCA security, but its re-encryption step must itself be constant-time, as the rejection-sampling attack demonstrated.
 
+## How to Run Locally
+
+```bash
+git clone https://github.com/systemslibrarian/crypto-lab-hqc-timing
+cd crypto-lab-hqc-timing
+npm install
+npm run dev
+```
+
+## Related Demos
+
+- [crypto-lab-hqc-timing-break](https://systemslibrarian.github.io/crypto-lab-hqc-timing-break/) — the cache-timing Reed-Muller soft-ISD follow-on attack on HQC.
+- [crypto-lab-hqc-vault](https://systemslibrarian.github.io/crypto-lab-hqc-vault/) — the HQC KEM itself (Reed-Muller / Reed-Solomon) without the side-channel framing.
+- [crypto-lab-kyberslash](https://systemslibrarian.github.io/crypto-lab-kyberslash/) — the analogous division-timing attack on lattice-based ML-KEM.
+- [crypto-lab-syndrome-drain](https://systemslibrarian.github.io/crypto-lab-syndrome-drain/) — DOOM-style decoding attacks across BIKE/HQC/McEliece.
+- [crypto-lab-timing-oracle](https://systemslibrarian.github.io/crypto-lab-timing-oracle/) — the general timing-attack pattern on HMAC/RSA/cache.
+
 ## Tech
 
 Vite + TypeScript, zero runtime dependencies. `src/engine.ts` implements the timing simulation and the timing-oracle attack; `src/data.ts` holds the attack timeline and defenses; `src/ui.ts` is the interactive lab. Dark mode follows your OS preference on first load and is toggleable + persisted. The UI is mobile-first (44 px tap targets, fluid type, stacking layout), keyboard-accessible (skip link, visible focus rings, ARIA labels on every region), and respects `prefers-reduced-motion`, `forced-colors`, and print.
@@ -48,4 +65,6 @@ GitHub Pages deployment runs on every push to `main` via `.github/workflows/depl
 
 ---
 
-"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31
+*One of 60+ browser demos in the [Crypto Lab](https://crypto-lab.systemslibrarian.dev/) suite.*
+
+*"So whether you eat or drink or whatever you do, do it all for the glory of God." — 1 Corinthians 10:31*
