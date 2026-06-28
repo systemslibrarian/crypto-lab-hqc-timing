@@ -659,6 +659,18 @@ function renderFooter(): HTMLElement {
       <span aria-hidden="true">·</span>
       <a href="https://github.com/systemslibrarian?tab=repositories&q=crypto-lab" rel="noopener">More crypto-lab demos</a>
     </p>
+    <p class="footer-links">
+      Related demos:
+      <a href="https://systemslibrarian.github.io/crypto-lab-hqc-timing-break/" rel="noopener">crypto-lab-hqc-timing-break</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-hqc-vault/" rel="noopener">crypto-lab-hqc-vault</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-kyberslash/" rel="noopener">crypto-lab-kyberslash</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-syndrome-drain/" rel="noopener">crypto-lab-syndrome-drain</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://systemslibrarian.github.io/crypto-lab-timing-oracle/" rel="noopener">crypto-lab-timing-oracle</a>
+    </p>
     <p class="scripture">“So whether you eat or drink or whatever you do, do it all for the glory of God.” — 1 Corinthians 10:31</p>
   `;
 	return footer;
