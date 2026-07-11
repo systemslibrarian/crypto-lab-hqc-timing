@@ -464,8 +464,11 @@ function renderLab(): HTMLElement {
 			.map((p) => {
 				const h = Math.max(2, (p.meanTime / max) * 100);
 				const cls = p.guessedBit === 1 ? (p.correct ? 'bar--hit' : 'bar--miss') : 'bar--clean';
-				const label = `Position ${p.position}: ${p.meanTime.toFixed(1)} time units, guessed ${p.guessedBit === 1 ? 'error' : 'clean'}${p.correct ? ', correct' : ', wrong'}`;
-				return `<div class="bar ${cls}" style="--bar-height:${h}%" role="presentation" title="pos ${p.position}: ${p.meanTime.toFixed(1)} → ${p.guessedBit}${p.correct ? ' ✓' : ' ✗'}" aria-label="${label}"></div>`;
+				// Bars are decorative: the chart already carries an sr-only summary
+				// (#chart-summary-*) describing every position for assistive tech, so
+				// each bar is role="presentation" with no ARIA attrs (aria-label is
+				// prohibited on presentation). title stays as a sighted-hover tooltip.
+				return `<div class="bar ${cls}" style="--bar-height:${h}%" role="presentation" title="pos ${p.position}: ${p.meanTime.toFixed(1)} → ${p.guessedBit}${p.correct ? ' ✓' : ' ✗'}"></div>`;
 			})
 			.join('');
 	}
@@ -505,11 +508,11 @@ function renderLab(): HTMLElement {
 				const ok = b === truth[i];
 				const cls = `bit ${b ? 'bit--set' : ''} ${ok ? '' : 'bit--wrong'}`.trim();
 				const label = `Position ${i}: recovered ${b}${ok ? '' : ' (wrong)'}`;
-				return `<span class="${cls}" role="img" aria-label="${label}">${b}</span>`;
+				return `<span class="${cls}" role="listitem" aria-label="${label}">${b}</span>`;
 			})
 			.join('');
 		const truthCells = truth
-			.map((b, i) => `<span class="bit ${b ? 'bit--set' : ''}" role="img" aria-label="Position ${i}: actual ${b}">${b}</span>`)
+			.map((b, i) => `<span class="bit ${b ? 'bit--set' : ''}" role="listitem" aria-label="Position ${i}: actual ${b}">${b}</span>`)
 			.join('');
 		const recoveredSupport: number[] = [];
 		const actualSupport: number[] = [];
