@@ -6,7 +6,11 @@ import {
 	createRng,
 	randomSeed,
 	formatSeed,
+	analyzeDistinguisher,
+	SIGNAL_GAP,
+	DECISION_MARGIN,
 	type SimParams,
+	type Distinguisher,
 	type AttackResult,
 } from './engine.ts';
 import { TIMELINE, DEFENSES, FACTS, PRESETS, type Preset } from './data.ts';
@@ -82,6 +86,181 @@ function renderHero(): HTMLElement {
 	return hero;
 }
 
+// --- the distinguisher: the statistics behind the attack ------------------
+// Draws the two decode-time distributions (flip removes an error vs adds one)
+// at both a single-query width (sigma) and the averaged width (sigma/sqrt(N)),
+// so you can see averaging pull two overlapping bells apart. Live, closed-form,
+// and independent of the sampling run — it updates on every slider input.
+
+const DIST_W = 460;
+const DIST_H = 190;
+const DIST_PAD_X = 14;
+const DIST_PAD_TOP = 16;
+const DIST_BASE = DIST_H - 26; // y of the baseline
+
+// Unit-peak Gaussian as an SVG path, clipped to the plot box.
+function gaussPath(
+	mu: number,
+	sigma: number,
+	lo: number,
+	hi: number,
+	close: boolean,
+): string {
+	const span = hi - lo || 1;
+	const s = Math.max(sigma, span / 260); // keep near-zero-noise spikes drawable
+	const steps = 120;
+	const pts: string[] = [];
+	for (let i = 0; i <= steps; i++) {
+		const x = lo + (span * i) / steps;
+		const y = Math.exp(-0.5 * ((x - mu) / s) ** 2); // 0..1, unit peak
+		const px = DIST_PAD_X + ((x - lo) / span) * (DIST_W - 2 * DIST_PAD_X);
+		const py = DIST_BASE - y * (DIST_BASE - DIST_PAD_TOP);
+		pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+	}
+	const line = 'M' + pts.map((p, i) => (i === 0 ? p : 'L' + p)).join(' ');
+	if (!close) return line;
+	const x0 = DIST_PAD_X;
+	const x1 = DIST_W - DIST_PAD_X;
+	return `${line} L${x1.toFixed(1)},${DIST_BASE} L${x0.toFixed(1)},${DIST_BASE} Z`;
+}
+
+function xToPx(x: number, lo: number, hi: number): number {
+	const span = hi - lo || 1;
+	return DIST_PAD_X + ((x - lo) / span) * (DIST_W - 2 * DIST_PAD_X);
+}
+
+function distinguisherSvg(d: Distinguisher): string {
+	// Plot window: wide enough to show the single-query spread of both bells.
+	const pad = Math.max(3 * d.sigmaQuery, d.gap * 0.35, 6);
+	const lo = Math.min(d.muError, d.muClean) - pad;
+	const hi = Math.max(d.muError, d.muClean) + pad;
+
+	const thrPx = xToPx(d.threshold, lo, hi);
+	const errPx = xToPx(d.muError, lo, hi);
+	const cleanPx = xToPx(d.muClean, lo, hi);
+
+	// Averaged (bold, filled) — the distribution of the per-position mean.
+	const errMean = gaussPath(d.muError, d.sigmaMean, lo, hi, true);
+	const cleanMean = gaussPath(d.muClean, d.sigmaMean, lo, hi, true);
+	// Single query (faint outline) — one raw measurement, for contrast.
+	const errOne = gaussPath(d.muError, d.sigmaQuery, lo, hi, false);
+	const cleanOne = gaussPath(d.muClean, d.sigmaQuery, lo, hi, false);
+
+	const sameCenter = Math.abs(d.muError - d.muClean) < 0.001;
+
+	return `
+    <svg class="dist-svg" viewBox="0 0 ${DIST_W} ${DIST_H}" role="img"
+         aria-label="Two decode-time distributions and the decision threshold between them." preserveAspectRatio="none">
+      <line class="dist-baseline" x1="${DIST_PAD_X}" y1="${DIST_BASE}" x2="${DIST_W - DIST_PAD_X}" y2="${DIST_BASE}" />
+      <path class="dist-one dist-one--err" d="${errOne}" />
+      ${sameCenter ? '' : `<path class="dist-one dist-one--clean" d="${cleanOne}" />`}
+      <path class="dist-fill dist-fill--err" d="${errMean}" />
+      <path class="dist-fill dist-fill--clean" d="${cleanMean}" />
+      <line class="dist-threshold" x1="${thrPx.toFixed(1)}" y1="${DIST_PAD_TOP - 4}" x2="${thrPx.toFixed(1)}" y2="${DIST_BASE}" />
+      <g class="dist-labels" aria-hidden="true">
+        <text x="${errPx.toFixed(1)}" y="${DIST_BASE + 16}" text-anchor="middle" class="dist-tag dist-tag--err">removes error</text>
+        ${sameCenter ? '' : `<text x="${cleanPx.toFixed(1)}" y="${DIST_BASE + 16}" text-anchor="middle" class="dist-tag dist-tag--clean">adds error</text>`}
+      </g>
+    </svg>`;
+}
+
+function distinguisherMarkup(d: Distinguisher): string {
+	const fmt = (x: number) => (Number.isFinite(x) ? x.toFixed(1) : '∞');
+	const zText = Number.isFinite(d.z) ? d.z.toFixed(1) + 'σ' : 'noise-free';
+	const errPct =
+		d.perBitError >= 0.005 ? (d.perBitError * 100).toFixed(1) + '%' : '<0.5%';
+	const expWrong = d.expectedWrong;
+	const verdict = d.constantTime
+		? 'Constant time collapses the two distributions onto each other — there is no gap to detect, so every guess is a coin flip.'
+		: d.z === Infinity
+			? 'With zero noise the two distributions are spikes: one clean measurement per position recovers the whole key.'
+			: d.z >= 4
+				? 'The averaged distributions are cleanly separated — expect essentially perfect recovery.'
+				: d.z >= 2
+					? 'The bells are pulling apart but still overlap — a few positions will flip. More queries or less noise finishes the job.'
+					: 'Heavy overlap: the averaged means still cross the threshold often, so recovery is unreliable. This is what too few queries (or too much noise) looks like.';
+
+	return `
+    <div class="panel-header">
+      <h3 id="dist-heading">Why averaging works: the distinguisher</h3>
+      <span class="vs-chip ${d.constantTime ? 'vs-chip--stark' : d.z >= 3 ? 'vs-chip--snark' : 'vs-chip--tie'}" role="status">${
+				d.constantTime ? 'No signal' : Number.isFinite(d.z) ? `z = ${d.z.toFixed(1)}σ` : 'Trivial'
+			}</span>
+    </div>
+    <p class="panel-copy">
+      Each position is one of two cases: the flip either <strong>removes</strong> a secret error
+      (faster) or <strong>adds</strong> one (slower). Those two cases are two bell curves. A single
+      query is the wide faint outline; averaging <span class="mono-inline">${d.trials}</span> queries
+      is the bold curve, narrower by <span class="mono-inline">√${d.trials}</span>. When the bold
+      bells clear the threshold, the key falls out.
+    </p>
+    <figure class="dist-figure">
+      ${distinguisherSvg(d)}
+      <figcaption class="dist-caption">
+        <span class="dist-key"><span class="dist-key-swatch dist-key-swatch--err"></span>Flip a secret position</span>
+        <span class="dist-key"><span class="dist-key-swatch dist-key-swatch--clean"></span>Flip a clean position</span>
+        <span class="dist-key"><span class="dist-key-swatch dist-key-swatch--thr"></span>Decision threshold</span>
+        <span class="dist-key dist-key--muted">Faint = one query · Bold = averaged</span>
+      </figcaption>
+    </figure>
+    <dl class="dist-stats" aria-label="Distinguisher statistics">
+      <div class="dist-stat">
+        <dt>Signal gap</dt>
+        <dd><span class="dist-stat-val">${d.gap.toFixed(0)}</span><span class="dist-stat-unit">time units</span></dd>
+      </div>
+      <div class="dist-stat">
+        <dt>Noise σ (per query)</dt>
+        <dd><span class="dist-stat-val">${fmt(d.sigmaQuery)}</span></dd>
+      </div>
+      <div class="dist-stat">
+        <dt>σ ⁄ √N (averaged)</dt>
+        <dd><span class="dist-stat-val">${fmt(d.sigmaMean)}</span></dd>
+      </div>
+      <div class="dist-stat">
+        <dt>Separation z</dt>
+        <dd><span class="dist-stat-val">${zText}</span></dd>
+      </div>
+      <div class="dist-stat">
+        <dt>Error / position</dt>
+        <dd><span class="dist-stat-val">${errPct}</span></dd>
+      </div>
+      <div class="dist-stat dist-stat--wide">
+        <dt>Expected wrong bits</dt>
+        <dd><span class="dist-stat-val">${expWrong < 0.05 ? '≈0' : expWrong.toFixed(1)}</span><span class="dist-stat-unit">of 32</span></dd>
+      </div>
+    </dl>
+    <p class="panel-copy dist-verdict">${verdict}</p>
+    <details class="dist-math">
+      <summary>The math</summary>
+      <p>
+        The two class means sit a fixed <span class="mono-inline">gap = 2·t = ${SIGNAL_GAP}</span> apart
+        (<span class="mono-inline">t</span> = time per extra error). The threshold is midway, so the
+        <span class="mono-inline">margin = t = ${DECISION_MARGIN}</span>. Averaging
+        <span class="mono-inline">N</span> queries reduces the noise on each position's mean from
+        <span class="mono-inline">σ</span> to <span class="mono-inline">σ⁄√N</span>. A position is
+        misread only when its mean crosses the threshold, a Gaussian tail:
+      </p>
+      <p class="dist-formula">P(wrong bit) = Φ(−z), &nbsp; z = margin ⁄ (σ⁄√N) = t·√N ⁄ σ</p>
+      <p>
+        Because separation grows only as <span class="mono-inline">√N</span>, halving the noise floor
+        costs <em>four times</em> the queries — the defining economics of a timing attack. Constant-time
+        decoding sets <span class="mono-inline">gap = 0</span>, so <span class="mono-inline">z = 0</span>
+        and <span class="mono-inline">Φ(0) = ½</span>: pure chance, at any query count.
+      </p>
+      <p>
+        This is the ideal-threshold floor. The lab's attack uses a simpler unsupervised threshold and
+        no prior knowledge of the secret weight, so near the overlap it may miss a few extra bits —
+        run the attack and compare. Once <span class="mono-inline">z ≳ 3</span> the two agree and
+        recovery is total.
+      </p>
+    </details>
+    <p class="sr-only">${
+			d.constantTime
+				? 'Constant-time defense: the two decode-time distributions coincide, so recovery is no better than chance regardless of query count.'
+				: `Signal gap ${d.gap.toFixed(0)} time units, per-query noise ${fmt(d.sigmaQuery)}, averaged over ${d.trials} queries gives standard error ${fmt(d.sigmaMean)}, a separation of ${zText}, so about ${expWrong.toFixed(1)} of 32 bits are expected wrong.`
+		}</p>`;
+}
+
 // --- the interactive attack lab -------------------------------------------
 function renderLab(): HTMLElement {
 	const section = el('section', 'lab-section');
@@ -95,7 +274,8 @@ function renderLab(): HTMLElement {
         <p class="section-footnote">
           For each codeword position, the attacker flips that bit and times the decode. Flipping
           a true error position <em>removes</em> an error (faster); flipping a clean position
-          <em>adds</em> one (slower). Averaging beats the noise and reveals the secret.
+          <em>adds</em> one (slower). Averaging beats the noise and reveals the secret — the
+          distinguisher panel below shows exactly how much averaging that takes.
         </p>
       </div>
     </div>
@@ -211,6 +391,8 @@ function renderLab(): HTMLElement {
       </div>
     </form>
 
+    <section id="distinguisher" class="panel-card panel-card--dist" aria-labelledby="dist-heading"></section>
+
     <div id="lab-results" class="lab-results" aria-live="off"></div>
   `;
 
@@ -228,14 +410,28 @@ function renderLab(): HTMLElement {
 	const labResults = $('lab-results');
 	const form = $('lab-controls') as HTMLFormElement;
 
+	const N = 32;
+
+	const distinguisherEl = $('distinguisher');
+
+	function refreshDistinguisher(): void {
+		const params: SimParams = {
+			n: N,
+			noise: parseFloat(noise.value),
+			// In side-by-side mode the vulnerable decoder is the interesting one to analyse.
+			constantTime: compare.checked ? false : ct.checked,
+		};
+		const d = analyzeDistinguisher(params, parseInt(weight.value, 10), parseInt(trials.value, 10));
+		distinguisherEl.innerHTML = distinguisherMarkup(d);
+	}
+
 	const sync = () => {
 		$('weight-val').textContent = weight.value;
 		$('noise-val').textContent = noise.value;
 		$('trials-val').textContent = trials.value;
+		refreshDistinguisher();
 	};
 	[weight, noise, trials].forEach((i) => i.addEventListener('input', sync));
-
-	const N = 32;
 
 	let currentSeed = randomSeed();
 	let seedLocked = false;
@@ -452,6 +648,7 @@ function renderLab(): HTMLElement {
 	function run(): void {
 		if (!seedLocked) currentSeed = randomSeed();
 		refreshSeedChip();
+		refreshDistinguisher();
 
 		runBtn.disabled = true;
 		runBtn.classList.add('is-running');
@@ -522,6 +719,7 @@ function renderLab(): HTMLElement {
 		seedLocked = wasLocked;
 		refreshSeedChip();
 	});
+	ct.addEventListener('change', refreshDistinguisher);
 	compare.addEventListener('change', () => {
 		reflectCompareMode();
 		run();
@@ -570,6 +768,7 @@ function renderLab(): HTMLElement {
 
 	refreshSeedChip();
 	reflectCompareMode();
+	refreshDistinguisher();
 	queueMicrotask(() => applyPreset(PRESETS[0]!));
 
 	void decode; // exported for console experimentation

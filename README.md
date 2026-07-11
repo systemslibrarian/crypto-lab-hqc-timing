@@ -16,7 +16,9 @@ An interactive demonstration of the timing side-channel that has repeatedly thre
 
 **[systemslibrarian.github.io/crypto-lab-hqc-timing](https://systemslibrarian.github.io/crypto-lab-hqc-timing/)**
 
-Set the secret error weight, the measurement noise, and how many timed queries to average per position, then run the timing-oracle attack. The chart shows the mean decode time for each codeword position; positions that fall below the threshold line are guessed as secret-error positions (green when correct, red when wrong). The recovery panel compares the recovered support against the true secret and reports the bit accuracy and query count. Toggle the constant-time defense and re-run: every position now does the same work, the bars flatten, and recovery drops to coin-flip. Below the lab, a timeline walks through four real HQC timing leaks (2020 BCH decoder, 2022 rejection sampling, 2024 division instruction, 2026 compiler-induced), followed by a do/don't guide to closing the channel.
+Set the secret error weight, the measurement noise, and how many timed queries to average per position, then run the timing-oracle attack. The chart shows the mean decode time for each codeword position; positions that fall below the threshold line are guessed as secret-error positions (green when correct, red when wrong). The recovery panel compares the recovered support against the true secret and reports the bit accuracy and query count. Toggle the constant-time defense and re-run: every position now does the same work, the bars flatten, and recovery drops to coin-flip.
+
+A live **distinguisher panel** sits above the results and updates as you drag the sliders — before you even run. It draws the two decode-time distributions the attack must separate (a bit-flip that *removes* a secret error decodes faster; one that *adds* an error decodes slower) at both a single-query width and the averaged width, and reports the closed-form statistics: the signal gap, the per-query noise σ, the standard error σ⁄√N after averaging, the separation `z = t·√N ⁄ σ`, and the resulting expected wrong-bit count. This makes the quantitative heart of every timing attack visible: the signal grows only as √N, so halving the noise floor costs four times the queries, and constant time sets the gap to zero so `z = 0` and recovery is pure chance at any query count. Below the lab, a timeline walks through four real HQC timing leaks (2020 BCH decoder, 2022 rejection sampling, 2024 division instruction, 2026 compiler-induced), followed by a do/don't guide to closing the channel.
 
 ## What Can Go Wrong
 
@@ -53,7 +55,7 @@ npm run dev
 
 ## Tech
 
-Vite + TypeScript, zero runtime dependencies. `src/engine.ts` implements the timing simulation and the timing-oracle attack; `src/data.ts` holds the attack timeline and defenses; `src/ui.ts` is the interactive lab. Dark mode follows your OS preference on first load and is toggleable + persisted. The UI is mobile-first (44 px tap targets, fluid type, stacking layout), keyboard-accessible (skip link, visible focus rings, ARIA labels on every region), and respects `prefers-reduced-motion`, `forced-colors`, and print.
+Vite + TypeScript, zero runtime dependencies. `src/engine.ts` implements the timing simulation, the timing-oracle attack, and the closed-form distinguisher analysis (`analyzeDistinguisher`, a normal-CDF SNR model validated against the sampling attack); `src/data.ts` holds the attack timeline and defenses; `src/ui.ts` is the interactive lab, including the live SVG distribution panel. Dark mode follows your OS preference on first load and is toggleable + persisted. The UI is mobile-first (44 px tap targets, fluid type, stacking layout), keyboard-accessible (skip link, visible focus rings, ARIA labels on every region), and respects `prefers-reduced-motion`, `forced-colors`, and print.
 
 ```bash
 npm install

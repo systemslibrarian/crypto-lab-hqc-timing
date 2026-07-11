@@ -30,7 +30,7 @@ export interface DecodeResult {
 	idealTime: number; // noise-free time
 }
 
-const TIME_PER_ERROR = 8.0;
+export const TIME_PER_ERROR = 8.0;
 const BASE_TIME = 20.0;
 const CT_TIME = 84.0;
 
@@ -170,3 +170,93 @@ export function timingAttack(
 }
 
 export { hammingWeight };
+
+// --- the statistics of the distinguisher -----------------------------------
+//
+// The attack is, at heart, a hypothesis test. Flipping bit i either REMOVES a
+// secret error (weight w-1, faster decode) or ADDS one (weight w+1, slower).
+// So every position falls into one of two classes whose mean decode times are
+// separated by a fixed SIGNAL_GAP = 2 * TIME_PER_ERROR. A single measurement is
+// buried in noise of standard deviation sigma; averaging `trials` of them shrinks
+// the standard error to sigma/sqrt(trials). The decision threshold sits midway
+// between the two class means, so a position is misclassified only if its
+// measured mean strays more than MARGIN = TIME_PER_ERROR past the midpoint —
+// a Gaussian tail of z = MARGIN / (sigma/sqrt(trials)). This is exactly why you
+// need roughly N ~ sigma^2 queries: the separation grows only as sqrt(N).
+
+export const SIGNAL_GAP = 2 * TIME_PER_ERROR; // add-an-error vs remove-an-error
+export const DECISION_MARGIN = TIME_PER_ERROR; // class mean to threshold
+
+// Abramowitz & Stegun 7.1.26 — max error ~1.5e-7, ample for visualization.
+function erf(x: number): number {
+	const sign = x < 0 ? -1 : 1;
+	const ax = Math.abs(x);
+	const t = 1 / (1 + 0.3275911 * ax);
+	const y =
+		1 -
+		(((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t +
+			0.254829592) *
+			t) *
+			Math.exp(-ax * ax);
+	return sign * y;
+}
+
+export function normalCdf(x: number): number {
+	return 0.5 * (1 + erf(x / Math.SQRT2));
+}
+
+export interface Distinguisher {
+	constantTime: boolean;
+	muError: number; // mean decode time when flipping a true secret position (weight w-1)
+	muClean: number; // mean when flipping a clean position (weight w+1)
+	threshold: number; // midpoint decision boundary
+	gap: number; // SIGNAL_GAP, or 0 under constant time
+	margin: number; // distance from a class mean to the threshold
+	sigmaQuery: number; // per-query measurement noise
+	sigmaMean: number; // standard error after averaging: sigma / sqrt(trials)
+	z: number; // margin / sigmaMean — separation in standard errors
+	perBitError: number; // Phi(-z): probability one position is misclassified
+	expectedWrong: number; // n * perBitError
+	trials: number;
+}
+
+// Closed-form analysis of the distinguisher for the current settings. Pure and
+// side-effect free, so the UI can call it live on every slider input without
+// running the (sampling-based) attack. It agrees with `timingAttack` in
+// expectation because both use the same TIME_PER_ERROR / noise model.
+export function analyzeDistinguisher(
+	params: SimParams,
+	weight: number,
+	trials: number,
+): Distinguisher {
+	const constantTime = params.constantTime;
+	const w = Math.max(1, weight);
+	const n = params.n;
+	const t = Math.max(1, trials);
+
+	const muError = constantTime ? CT_TIME : BASE_TIME + (w - 1) * TIME_PER_ERROR;
+	const muClean = constantTime ? CT_TIME : BASE_TIME + (w + 1) * TIME_PER_ERROR;
+	const gap = constantTime ? 0 : SIGNAL_GAP;
+	const margin = gap / 2;
+	const threshold = (muError + muClean) / 2;
+
+	const sigmaQuery = Math.max(0, params.noise);
+	const sigmaMean = sigmaQuery / Math.sqrt(t);
+	const z = sigmaMean > 0 ? margin / sigmaMean : Infinity;
+	const perBitError = constantTime ? 0.5 : normalCdf(-z);
+
+	return {
+		constantTime,
+		muError,
+		muClean,
+		threshold,
+		gap,
+		margin,
+		sigmaQuery,
+		sigmaMean,
+		z,
+		perBitError,
+		expectedWrong: perBitError * n,
+		trials: t,
+	};
+}
