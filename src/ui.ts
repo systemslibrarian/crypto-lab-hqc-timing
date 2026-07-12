@@ -56,19 +56,28 @@ function renderHero(): HTMLElement {
       <h1 id="hero-heading">HQC Timing Leak</h1>
       <p class="hero-text">
         A post-quantum scheme can be mathematically sound and still leak its secret through
-        <em>how long it takes to run</em>. This lab recreates the documented HQC timing attack:
-        a non-constant-time code-based decoder runs faster or slower depending on the secret
-        error pattern, and a timing oracle turns that leak into full key recovery. Flip on the
-        constant-time defense and watch the signal vanish.
+        <em>how long it takes to run</em>. This lab reproduces the <em>structure</em> of the
+        documented HQC timing attack with an <strong>abstract timing model</strong> — not a
+        real BCH decoder: a non-constant-time decode runs faster or slower depending on the
+        secret error pattern, and a timing oracle turns that leak into full key recovery. Flip
+        on the constant-time defense and watch the signal vanish.
       </p>
       <details class="why-details">
-        <summary><span class="why-summary-text">Is this a real attack?</span></summary>
+        <summary><span class="why-summary-text">Is this a real attack? Is this real HQC?</span></summary>
         <p>
-          Yes. Wafo-Tapa et al. (2020) recovered the HQC secret key in under a minute using
-          ~6,000 timed decoding requests, exploiting a correlation between the BCH decoder’s
-          runtime and the error weight. Later work found further leaks in rejection sampling
-          (2022), a division instruction (2024), and compiler-rewritten constant-time code
-          (2026). This simulation models the original weight-timing leak.
+          The <em>attack</em> is real: Wafo-Tapa et al. (2020) recovered the HQC secret key in
+          under a minute using ~6,000 timed decoding requests, exploiting a correlation between
+          the BCH decoder’s runtime and the error weight. Later work found further leaks in
+          rejection sampling (2022), a division instruction (2024), and compiler-rewritten
+          constant-time code (2026).
+        </p>
+        <p>
+          The <em>decoder here is not</em>. To make the side-channel visible without shipping a
+          full HQC implementation, this lab models decode time as
+          <code>BASE + weight · TIME_PER_ERROR + Gaussian noise</code> — an abstraction, not a
+          BCH decoder. It faithfully reproduces the weight-timing leak the 2020 attack exploited
+          and the oracle that recovers the secret from it, but the numbers are illustrative, not
+          measured, and the parameters are tiny for teaching.
         </p>
       </details>
     </div>

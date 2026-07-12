@@ -2,7 +2,7 @@
 
 ## What It Is
 
-An interactive demonstration of the timing side-channel that has repeatedly threatened HQC (Hamming Quasi-Cyclic), the code-based key-encapsulation mechanism NIST selected for standardisation in 2025. A post-quantum scheme can rest on a hard mathematical problem and still leak its secret key through *how long its decoder runs*. This lab recreates the documented attack: a non-constant-time code decoder takes a different amount of time depending on the weight of the error it must correct, and a chosen-ciphertext timing oracle turns that correlation into full secret-key recovery. The lab lets you run the attack, watch a per-position timing chart reveal the secret error support, and then flip on a constant-time decoder to watch the signal — and the attack — disappear. The timing model is abstract (decoder work proportional to error weight, plus measurement noise) so the side-channel is visible without a full HQC implementation, but the attack structure mirrors the real one.
+An interactive demonstration of the timing side-channel that has repeatedly threatened HQC (Hamming Quasi-Cyclic), the code-based key-encapsulation mechanism NIST selected for standardisation in 2025. A post-quantum scheme can rest on a hard mathematical problem and still leak its secret key through *how long its decoder runs*. This lab reproduces the **structure** of the documented attack using an **abstract timing model — not a real BCH decoder**: instead of executing HQC's actual decoding routine, it models decode time as `BASE + weight · TIME_PER_ERROR + Gaussian noise`, so the weight-dependent side-channel is visible without shipping a full HQC implementation. A chosen-ciphertext timing oracle then turns that correlation into full secret-key recovery. The lab lets you run the attack, watch a per-position timing chart reveal the secret error support, and then flip on a constant-time decoder to watch the signal — and the attack — disappear. The *attack structure and the recovery oracle are faithful* to the 2020 Wafo-Tapa et al. attack; the decode-time numbers are **illustrative, not measured**, and the parameters are tiny for teaching.
 
 ## When to Use It
 
@@ -59,11 +59,13 @@ Vite + TypeScript, zero runtime dependencies. `src/engine.ts` implements the tim
 
 ```bash
 npm install
-npm run dev      # local dev server
-npm run build    # type-check + production build to dist/
+npm run dev       # local dev server
+npm run build     # type-check + production build to dist/
+npm test          # vitest unit tests (engine: erf/normalCdf KATs, distinguisher-vs-attack agreement, constant-time collapse)
+npm run test:a11y # axe-core WCAG A/AA gate (dark + light)
 ```
 
-GitHub Pages deployment runs on every push to `main` via `.github/workflows/deploy.yml` (build → upload artifact → deploy).
+The unit tests validate the closed-form distinguisher against the sampling attack in expectation, KAT the erf/normalCdf model against known normal-CDF values, and check that constant-time mode drives the separation `z → 0` and recovery to a coin flip. GitHub Pages deployment runs on every push to `main` via `.github/workflows/deploy.yml`, gated on `npm test` (unit) → `npm run build` → `npm run test:a11y` (accessibility) → upload → deploy.
 
 ---
 
