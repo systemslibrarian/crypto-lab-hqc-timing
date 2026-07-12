@@ -42,45 +42,40 @@ function announce(message: string): void {
 }
 
 function renderHero(): HTMLElement {
-	const hero = el('header', 'hero-panel');
-	hero.setAttribute('aria-labelledby', 'hero-heading');
+	const hero = el('div', 'hero-panel');
 	hero.innerHTML = `
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode" aria-pressed="true">
       <span aria-hidden="true">\u{1F319}</span>
     </button>
-    <div class="hero-copy">
-      <a class="portfolio-badge" href="https://github.com/systemslibrarian?tab=repositories&q=crypto-lab" rel="noopener">
-        <span aria-hidden="true">❖</span> crypto-lab · portfolio
-      </a>
-      <p class="eyebrow">Code-based · Side-Channel</p>
-      <h1 id="hero-heading">HQC Timing Leak</h1>
-      <p class="hero-text">
-        A post-quantum scheme can be mathematically sound and still leak its secret through
-        <em>how long it takes to run</em>. This lab reproduces the <em>structure</em> of the
-        documented HQC timing attack with an <strong>abstract timing model</strong> — not a
-        real BCH decoder: a non-constant-time decode runs faster or slower depending on the
-        secret error pattern, and a timing oracle turns that leak into full key recovery. Flip
-        on the constant-time defense and watch the signal vanish.
+    <header class="cl-hero">
+      <div class="cl-hero-main">
+        <h1 class="cl-hero-title">HQC Timing Leak</h1>
+        <p class="cl-hero-sub">Code-based KEM · Timing side-channel</p>
+        <p class="cl-hero-desc">Fire a chosen-ciphertext timing oracle at a non-constant-time HQC decoder, average N queries to pull the weight signal out of noise, then flip on constant-time decoding and watch key recovery collapse.</p>
+      </div>
+      <aside class="cl-hero-why" aria-label="Why it matters">
+        <span class="cl-hero-why-label">WHY IT MATTERS</span>
+        <p class="cl-hero-why-text">A post-quantum scheme can be mathematically unbreakable yet hand over its secret key because the code runs a hair slower on some inputs. The real 2020 attack recovered an HQC key in under a minute — proof that implementations, not just math, must be secure.</p>
+      </aside>
+    </header>
+    <details class="why-details">
+      <summary><span class="why-summary-text">Is this a real attack? Is this real HQC?</span></summary>
+      <p>
+        The <em>attack</em> is real: Wafo-Tapa et al. (2020) recovered the HQC secret key in
+        under a minute using ~6,000 timed decoding requests, exploiting a correlation between
+        the BCH decoder’s runtime and the error weight. Later work found further leaks in
+        rejection sampling (2022), a division instruction (2024), and compiler-rewritten
+        constant-time code (2026).
       </p>
-      <details class="why-details">
-        <summary><span class="why-summary-text">Is this a real attack? Is this real HQC?</span></summary>
-        <p>
-          The <em>attack</em> is real: Wafo-Tapa et al. (2020) recovered the HQC secret key in
-          under a minute using ~6,000 timed decoding requests, exploiting a correlation between
-          the BCH decoder’s runtime and the error weight. Later work found further leaks in
-          rejection sampling (2022), a division instruction (2024), and compiler-rewritten
-          constant-time code (2026).
-        </p>
-        <p>
-          The <em>decoder here is not</em>. To make the side-channel visible without shipping a
-          full HQC implementation, this lab models decode time as
-          <code>BASE + weight · TIME_PER_ERROR + Gaussian noise</code> — an abstraction, not a
-          BCH decoder. It faithfully reproduces the weight-timing leak the 2020 attack exploited
-          and the oracle that recovers the secret from it, but the numbers are illustrative, not
-          measured, and the parameters are tiny for teaching.
-        </p>
-      </details>
-    </div>
+      <p>
+        The <em>decoder here is not</em>. To make the side-channel visible without shipping a
+        full HQC implementation, this lab models decode time as
+        <code>BASE + weight · TIME_PER_ERROR + Gaussian noise</code> — an abstraction, not a
+        BCH decoder. It faithfully reproduces the weight-timing leak the 2020 attack exploited
+        and the oracle that recovers the secret from it, but the numbers are illustrative, not
+        measured, and the parameters are tiny for teaching.
+      </p>
+    </details>
     <aside class="hero-metric-card" aria-label="HQC at a glance">
       <p class="hero-metric-label">${FACTS.scheme}</p>
       <dl class="hero-stats">
