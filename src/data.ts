@@ -16,8 +16,8 @@ export const TIMELINE: TimelineEntry[] = [
 		leak: 'Decoder runtime ∝ error weight',
 		body: 'Wafo-Tapa et al. showed the BCH decoder’s running time correlates with the weight of the error being corrected. A chosen-ciphertext timing attack recovered the HQC secret key in under a minute with roughly 6,000 decoding requests, around 93% of the time. The fix: a constant-time BCH decoder.',
 		source: {
-			label: 'Wafo-Tapa et al., IACR ePrint 2020/1450',
-			url: 'https://eprint.iacr.org/2020/1450',
+			label: 'Wafo-Tapa et al., IACR ePrint 2019/909',
+			url: 'https://eprint.iacr.org/2019/909',
 		},
 	},
 	{
@@ -26,8 +26,8 @@ export const TIMELINE: TimelineEntry[] = [
 		leak: 'Re-encryption sampling timing',
 		body: 'Guo et al. (“Don’t Reject This”) found that even with a constant-time decoder, the rejection-sampling routine in the deterministic re-encryption step of decapsulation leaks secret-dependent timing in both HQC and BIKE — a structurally different key-recovery path.',
 		source: {
-			label: 'Guo et al., “Don’t Reject This” (TCHES)',
-			url: 'https://scholar.google.com/scholar?q=Don%27t+Reject+This+HQC+BIKE+rejection+sampling+timing',
+			label: 'Guo et al., “Don’t Reject This” (TCHES 2022; ePrint 2021/1485)',
+			url: 'https://eprint.iacr.org/2021/1485',
 		},
 	},
 	{
@@ -46,8 +46,8 @@ export const TIMELINE: TimelineEntry[] = [
 		leak: 'Optimizer breaks constant-time',
 		body: 'Researchers showed the official AVX2 implementation, though written as constant-time, was rewritten by compiler optimizations into secret-dependent control flow in the Reed–Muller decoder — enabling the first cache-timing full-decryption oracle attack on a PQC scheme. Source-level constant-time is not enough; the compiled binary must preserve it.',
 		source: {
-			label: 'Reference search (HQC Reed–Muller compiler timing)',
-			url: 'https://scholar.google.com/scholar?q=HQC+Reed-Muller+compiler+constant-time+cache+timing',
+			label: 'Dong & Guo, IACR ePrint 2026/693',
+			url: 'https://eprint.iacr.org/2026/693',
 		},
 	},
 ];
