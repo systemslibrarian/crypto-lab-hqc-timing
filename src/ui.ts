@@ -155,6 +155,7 @@ function distinguisherSvg(d: Distinguisher): string {
 	return `
     <svg class="dist-svg" viewBox="0 0 ${DIST_W} ${DIST_H}" role="img"
          aria-label="Two decode-time distributions and the decision threshold between them." preserveAspectRatio="none">
+      <title>Two decode-time distributions and the decision threshold between them.</title>
       <line class="dist-baseline" x1="${DIST_PAD_X}" y1="${DIST_BASE}" x2="${DIST_W - DIST_PAD_X}" y2="${DIST_BASE}" />
       <path class="dist-one dist-one--err" d="${errOne}" />
       ${sameCenter ? '' : `<path class="dist-one dist-one--clean" d="${cleanOne}" />`}
@@ -274,7 +275,7 @@ function renderLab(): HTMLElement {
     <div class="section-heading-row">
       <div>
         <p class="section-kicker">Live attack</p>
-        <h2 id="playground-heading">Timing Oracle Lab</h2>
+        <h2 id="playground-heading" tabindex="-1">Timing Oracle Lab</h2>
         <p class="section-footnote">
           For each codeword position, the attacker flips that bit and times the decode. Flipping
           a true error position <em>removes</em> an error (faster); flipping a clean position
@@ -884,6 +885,13 @@ function renderFooter(): HTMLElement {
 
 export function mountApp(root: HTMLDivElement): void {
 	const shell = el('div', 'page-shell');
-	shell.append(renderHero(), renderLab(), renderTimeline(), renderDefenses(), renderFooter());
+	// The lab content needs a `main` landmark (there is none in index.html), and
+	// nesting the .cl-hero <header> inside it also stops that header claiming a
+	// second `banner` landmark alongside the shared .cl-topbar. The footer stays
+	// a sibling of <main> so its contentinfo landmark remains top level.
+	const main = el('main', 'page-main');
+	main.id = 'main-content';
+	main.append(renderHero(), renderLab(), renderTimeline(), renderDefenses());
+	shell.append(main, renderFooter());
 	root.appendChild(shell);
 }

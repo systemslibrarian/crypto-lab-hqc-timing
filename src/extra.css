@@ -117,8 +117,13 @@
   cursor: pointer;
 }
 
+/* The ::-webkit-slider-thumb / ::-moz-range-thumb outlines below are the
+   preferred indicator, but browsers do not reliably paint outlines on those
+   pseudo-elements — so keep a real outline on the control itself rather than
+   `outline: none`, which could leave the slider with no visible focus. */
 .control-bar input[type='range']:focus-visible {
-  outline: none;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 .control-bar input[type='range']:focus-visible::-webkit-slider-thumb {
@@ -223,7 +228,7 @@
   font-family: var(--sans);
   font-size: 0.82rem;
   font-weight: 600;
-  min-height: 36px;
+  min-height: var(--tap-target);
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
