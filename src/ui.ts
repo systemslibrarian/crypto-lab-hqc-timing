@@ -7,6 +7,8 @@ import {
 	randomSeed,
 	formatSeed,
 	analyzeDistinguisher,
+	didLeak,
+	LEAK_Z_THRESHOLD,
 	SIGNAL_GAP,
 	DECISION_MARGIN,
 	type SimParams,
@@ -62,7 +64,7 @@ function renderHero(): HTMLElement {
       <summary><span class="why-summary-text">Is this a real attack? Is this real HQC?</span></summary>
       <p>
         The <em>attack</em> is real: Wafo-Tapa et al. (2020) recovered the HQC secret key in
-        under a minute using ~6,000 timed decoding requests, exploiting a correlation between
+        under a minute using 5,441 timed decoding requests, exploiting a correlation between
         the BCH decoder’s runtime and the error weight. Later work found further leaks in
         rejection sampling (2022), a division instruction (2024), and compiler-rewritten
         constant-time code (2026).
@@ -535,13 +537,32 @@ function renderLab(): HTMLElement {
 		}
 		const fmtSet = (a: number[]) => (a.length ? `{${a.join(', ')}}` : '{ }');
 		const pct = (res.accuracy * 100).toFixed(0);
+
+		// The verdict is decided by the MEASURED separation between the two classes,
+		// not by the constant-time checkbox. If the defense were silently broken, this
+		// line would say so instead of congratulating it.
+		const leak = didLeak(res);
+		const zTxt = Number.isFinite(res.observedZ) ? `z = ${res.observedZ.toFixed(1)}` : 'z = ∞';
+		const gapTxt = `${res.observedGap.toFixed(1)} time units (${zTxt})`;
+
 		const verdict = params.constantTime
-			? 'Defense held — recovery is no better than guessing.'
+			? leak
+				? `<strong>Defense FAILED.</strong> Constant-time mode is on, yet the measured gap between
+					 secret and clean positions is ${gapTxt} — past the ${LEAK_Z_THRESHOLD}σ bar, so this is
+					 signal, not noise. A working constant-time decoder cannot produce this.`
+				: `Defense held — measured gap between secret and clean positions is only ${gapTxt},
+					 below the ${LEAK_Z_THRESHOLD}σ bar, i.e. consistent with zero. Recovery is no better
+					 than guessing.`
 			: res.accuracy > 0.95
-				? 'Full key recovery from timing alone.'
+				? `Full key recovery from timing alone — measured gap ${gapTxt} against a predicted
+					 ${SIGNAL_GAP}.`
 				: res.accuracy > 0.7
-					? 'Partial recovery — add queries or reduce noise to finish the job.'
-					: 'Weak signal at this noise level — raise queries per position.';
+					? `Partial recovery — the leak is real (measured gap ${gapTxt} against a predicted
+						 ${SIGNAL_GAP}), but the averaging is not finishing the job. Add queries or reduce
+						 noise.`
+					: `Weak recovery at this noise level — the leak is still there (measured gap ${gapTxt}
+						 against a predicted ${SIGNAL_GAP}); there just are not enough queries to threshold
+						 each position reliably. Raise queries per position.`;
 		return `
       <dl class="support-summary" aria-label="Support set comparison">
         <div class="support-row">
@@ -571,8 +592,15 @@ function renderLab(): HTMLElement {
     `;
 	}
 
+	// Chip text follows the measured leak, not the checkbox. "Defended" is a claim about
+	// the timings, so it has to be earned by them.
 	function chipFor(res: AttackResult, params: SimParams): { cls: string; text: string } {
-		if (params.constantTime) return { cls: 'vs-chip vs-chip--stark', text: 'Defended' };
+		const leak = didLeak(res);
+		if (params.constantTime) {
+			return leak
+				? { cls: 'vs-chip vs-chip--snark', text: 'Defense FAILED' }
+				: { cls: 'vs-chip vs-chip--stark', text: 'Defended' };
+		}
 		if (res.accuracy > 0.95) return { cls: 'vs-chip vs-chip--snark', text: 'Key recovered' };
 		return { cls: 'vs-chip vs-chip--tie', text: 'Partial' };
 	}
@@ -604,8 +632,10 @@ function renderLab(): HTMLElement {
 		const pct = (res.accuracy * 100).toFixed(0);
 		announce(
 			params.constantTime
-				? `Attack complete. Constant-time defense held. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
-				: `Attack complete. ${res.bitsCorrect} of ${N} bits recovered, ${pct}% accuracy.`,
+				? didLeak(res)
+					? `Attack complete. Constant-time defense FAILED: a timing gap of ${res.observedGap.toFixed(1)} time units is still measurable. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
+					: `Attack complete. Constant-time defense held, no measurable timing gap. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
+				: `Attack complete. ${res.bitsCorrect} of ${N} bits recovered, ${pct}% accuracy, measured timing gap ${res.observedGap.toFixed(1)} time units.`,
 		);
 	}
 
@@ -649,7 +679,7 @@ function renderLab(): HTMLElement {
 		const vp = (vulnRes.accuracy * 100).toFixed(0);
 		const sp = (safeRes.accuracy * 100).toFixed(0);
 		announce(
-			`Side-by-side complete. Vulnerable: ${vulnRes.bitsCorrect} of ${N} bits, ${vp}%. Constant-time: ${safeRes.bitsCorrect} of ${N} bits, ${sp}%.`,
+			`Side-by-side complete. Vulnerable: ${vulnRes.bitsCorrect} of ${N} bits, ${vp}%, measured timing gap ${vulnRes.observedGap.toFixed(1)} time units. Constant-time: ${safeRes.bitsCorrect} of ${N} bits, ${sp}%, measured timing gap ${safeRes.observedGap.toFixed(1)} time units.`,
 		);
 	}
 

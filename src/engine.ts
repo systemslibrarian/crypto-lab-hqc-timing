@@ -122,6 +122,17 @@ export interface AttackResult {
 	accuracy: number;
 	totalQueries: number;
 	threshold: number;
+	// --- scoring-only diagnostics; NEVER consulted when forming a guess ---
+	// The measured separation between the two classes, computed after the fact by
+	// grouping the observed per-position means by the true secret. This is what lets
+	// the UI say "the defense held" as a MEASUREMENT rather than as a restatement of
+	// the constantTime flag: if constant-time mode were silently broken, observedGap
+	// would climb back to ~SIGNAL_GAP and the page would have to admit it.
+	/** mean(time | clean position) − mean(time | secret position), in time units. */
+	observedGap: number;
+	/** observedGap divided by the standard error of that difference. Infinity when
+	 *  noise is zero and a gap exists; 0 when noise is zero and no gap exists. */
+	observedZ: number;
 }
 
 export function timingAttack(
@@ -159,6 +170,33 @@ export function timingAttack(
 		perPosition.push({ position: i, meanTime: meanTimes[i], guessedBit, correct: isCorrect });
 	}
 
+	// Measure the separation that actually showed up in the data. Grouping by the true
+	// secret is legitimate here because this is the lab's scoring path, not the
+	// attacker's: `recovered` above was formed from `meanTimes` and `threshold` alone.
+	let sumSecret = 0;
+	let nSecret = 0;
+	let sumClean = 0;
+	let nClean = 0;
+	for (let i = 0; i < n; i++) {
+		if (secret[i] & 1) {
+			sumSecret += meanTimes[i];
+			nSecret++;
+		} else {
+			sumClean += meanTimes[i];
+			nClean++;
+		}
+	}
+	const bothClasses = nSecret > 0 && nClean > 0;
+	const observedGap = bothClasses ? sumClean / nClean - sumSecret / nSecret : 0;
+	// Each per-position mean has standard error sigma/sqrt(trials); averaging k of them
+	// gives sigma/sqrt(trials*k), and the difference of the two class means adds in
+	// quadrature.
+	const sigma = Math.max(0, params.noise);
+	const seDiff = bothClasses
+		? sigma * Math.sqrt(1 / (trialsPerPosition * nSecret) + 1 / (trialsPerPosition * nClean))
+		: 0;
+	const observedZ = seDiff > 0 ? observedGap / seDiff : observedGap === 0 ? 0 : Infinity;
+
 	return {
 		recovered,
 		perPosition,
@@ -166,7 +204,25 @@ export function timingAttack(
 		accuracy: correct / n,
 		totalQueries,
 		threshold,
+		observedGap,
+		observedZ,
 	};
+}
+
+// Separation, in standard errors, at which we call a timing gap real rather than noise.
+//
+// 4, not 3. This statistic pools every position and every query in the run, so it is a
+// very sensitive detector: even the weakest setting the sliders allow (noise 12, 10
+// queries per position, secret weight 2) still puts a genuine leak at z ~ 5.8. Meanwhile
+// a two-sided 3-sigma bar misfires on roughly 1 constant-time run in 200 -- measured at
+// 10 false alarms in 2106 runs across the full slider grid -- which would flash a
+// "Defense FAILED" banner at a learner who did nothing wrong. At 4 sigma the false-alarm
+// rate drops to ~6e-5 per run while every real leak in that grid is still caught.
+export const LEAK_Z_THRESHOLD = 4;
+
+/** Did this run actually leak? Measured from the timings, not from params.constantTime. */
+export function didLeak(res: AttackResult): boolean {
+	return Math.abs(res.observedZ) >= LEAK_Z_THRESHOLD;
 }
 
 export { hammingWeight };

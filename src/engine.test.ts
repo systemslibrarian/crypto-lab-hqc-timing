@@ -5,8 +5,10 @@ import {
   decode,
   timingAttack,
   analyzeDistinguisher,
+  didLeak,
   normalCdf,
   hammingWeight,
+  LEAK_Z_THRESHOLD,
   TIME_PER_ERROR,
   SIGNAL_GAP,
   DECISION_MARGIN,
@@ -134,6 +136,99 @@ describe('constant-time defense', () => {
     // With no signal, accuracy is chance. Allow a generous band around 0.5.
     expect(res.accuracy).toBeGreaterThan(0.3);
     expect(res.accuracy).toBeLessThan(0.7);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The leak detector: didLeak must be a MEASUREMENT of the timings, not a
+// restatement of params.constantTime. These tests are what stop the page from
+// printing "the defense held" when the defense is silently broken.
+// ---------------------------------------------------------------------------
+describe('measured leak detection', () => {
+  // With noise 0 the whole run is deterministic, so these two assert exact
+  // values rather than bands — no seed luck is involved.
+  it('noise-free leak: the observed gap is exactly SIGNAL_GAP', () => {
+    // Injecting at a secret position CANCELS an error (weight w-1); injecting at
+    // a clean position ADDS one (weight w+1). The two classes therefore sit
+    // exactly 2·TIME_PER_ERROR apart.
+    const n = 16;
+    const secret = makeSecret(n, 4, createRng(11));
+    const res = timingAttack(secret, { n, noise: 0, constantTime: false, rng: createRng(22) }, 5);
+    expect(res.observedGap).toBeCloseTo(SIGNAL_GAP, 10);
+    // Zero noise means zero standard error, so the separation is infinite.
+    expect(res.observedZ).toBe(Infinity);
+    expect(didLeak(res)).toBe(true);
+  });
+
+  it('noise-free constant time: the observed gap is exactly zero', () => {
+    const n = 16;
+    const secret = makeSecret(n, 4, createRng(11));
+    const res = timingAttack(secret, { n, noise: 0, constantTime: true, rng: createRng(22) }, 5);
+    expect(res.observedGap).toBe(0);
+    // gap 0 AND se 0 is the "no signal" branch, not the Infinity branch.
+    expect(res.observedZ).toBe(0);
+    expect(didLeak(res)).toBe(false);
+  });
+
+  it('the gap is measured from the timings, not read off the constantTime flag', () => {
+    // Same secret, same seed, same trial count — only the defense differs.
+    const n = 64;
+    const weight = 10;
+    const secret = makeSecret(n, weight, createRng(1));
+    const cfg = { n, noise: 6 } as const;
+    const leaky = timingAttack(secret, { ...cfg, constantTime: false, rng: createRng(7) }, 40);
+    const defended = timingAttack(secret, { ...cfg, constantTime: true, rng: createRng(7) }, 40);
+
+    // In this regime the theoretical separation is z ≈ 49, so clearing a 4σ bar
+    // is not a coin flip: it would take a ~45σ excursion to miss.
+    expect(leaky.observedGap).toBeCloseTo(SIGNAL_GAP, 0);
+    expect(leaky.observedZ).toBeGreaterThan(LEAK_Z_THRESHOLD * 4);
+    expect(didLeak(leaky)).toBe(true);
+
+    // The defense removes the signal, so all that is left is noise around zero.
+    expect(Math.abs(defended.observedGap)).toBeLessThan(SIGNAL_GAP / 4);
+    expect(didLeak(defended)).toBe(false);
+  });
+
+  it('holds at the weakest setting the sliders allow, and rarely cries wolf', () => {
+    // The threshold comment in engine.ts justifies 4σ over 3σ with two rates.
+    // Pin both, as RATES over many independent seeds rather than as a single
+    // run that would pass or fail by luck.
+    //
+    // Weakest genuine-leak regime: noise 12, 10 queries per position, weight 2.
+    // seDiff = 12·sqrt(1/(10·2) + 1/(10·30)) ≈ 2.771, so observedZ ~ N(5.77, 1)
+    // and the per-run detection probability is Φ(1.77) ≈ 0.962. Over 300 runs
+    // that is 288 ± 3.3, so a floor of 270 sits ~5σ below the mean.
+    const n = 32;
+    const runs = 300;
+    let detected = 0;
+    let falseAlarms = 0;
+    let ctGapSum = 0;
+    for (let s = 0; s < runs; s++) {
+      const secret = makeSecret(n, 2, createRng(3000 + s));
+      const leaky = timingAttack(
+        secret,
+        { n, noise: 12, constantTime: false, rng: createRng(6000 + s) },
+        10,
+      );
+      if (didLeak(leaky)) detected++;
+
+      const defended = timingAttack(
+        secret,
+        { n, noise: 12, constantTime: true, rng: createRng(6000 + s) },
+        10,
+      );
+      if (didLeak(defended)) falseAlarms++;
+      ctGapSum += defended.observedGap;
+    }
+
+    expect(detected).toBeGreaterThanOrEqual(runs * 0.9);
+    // Per-run false-alarm probability at 4σ is 2·Φ(-4) ≈ 6.3e-5, so the expected
+    // count here is 0.02. Allowing 2 makes a spurious failure ~1e-5 likely; a 3σ
+    // bar would have expected ~1.5 and this ceiling would be meaningless.
+    expect(falseAlarms).toBeLessThanOrEqual(2);
+    // And the defended runs are centred on zero, not on some smaller-but-real gap.
+    expect(Math.abs(ctGapSum / runs)).toBeLessThan(SIGNAL_GAP / 20);
   });
 });
 
