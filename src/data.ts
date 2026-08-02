@@ -90,9 +90,14 @@ export const PRESETS: Preset[] = [
 	{
 		id: 'borderline',
 		label: 'Borderline',
-		desc: 'Mid noise. Partial recovery — see what the attacker is up against.',
+		desc: 'Mid noise. Usually partial recovery — a lucky run still finishes.',
 		weight: 5,
-		noise: 6,
+		// Calibrated so the advertised outcome actually happens: over 300 runs
+		// this averages 26 of 32 bits (range 16-32), and the distinguisher calls
+		// a leak in about 91% of them. Earlier values (noise 6, 80 trials) left
+		// roughly 24 sigma between the two classes and recovered 32/32 every
+		// single time, so "partial" was unreachable.
+		noise: 50,
 		trials: 80,
 		constantTime: false,
 	},
@@ -108,10 +113,14 @@ export const PRESETS: Preset[] = [
 	{
 		id: 'noisy',
 		label: 'Too noisy',
-		desc: 'Heavy noise, few trials. Attack fails on its own.',
+		desc: 'Heavy noise, few queries. Attack fails on its own.',
 		weight: 5,
-		noise: 12,
-		trials: 30,
+		// Over 300 runs this averages 16.3 of 32 bits — chance is 16 — never
+		// reaches full recovery, and the distinguisher measured no leak in any
+		// run. Earlier values (noise 12, 30 trials) recovered 32/32 every time,
+		// so the preset promising failure demonstrated a total break.
+		noise: 120,
+		trials: 20,
 		constantTime: false,
 	},
 ];

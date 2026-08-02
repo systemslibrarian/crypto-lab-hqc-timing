@@ -560,9 +560,17 @@ function renderLab(): HTMLElement {
 					? `Partial recovery — the leak is real (measured gap ${gapTxt} against a predicted
 						 ${SIGNAL_GAP}), but the averaging is not finishing the job. Add queries or reduce
 						 noise.`
-					: `Weak recovery at this noise level — the leak is still there (measured gap ${gapTxt}
-						 against a predicted ${SIGNAL_GAP}); there just are not enough queries to threshold
-						 each position reliably. Raise queries per position.`;
+					: leak
+						? `Weak recovery at this noise level — the leak is still measurable (gap ${gapTxt}
+							 against a predicted ${SIGNAL_GAP}); there just are not enough queries to
+							 threshold each position reliably. Raise queries per position.`
+						: // Whether a leak survived is a measurement, not an assumption: at high
+							// noise the gap collapses into the noise entirely, and then the attack has
+							// failed rather than merely underperformed.
+							`Attack failed at this noise level — the measured gap is only ${gapTxt}, below the
+							 ${LEAK_Z_THRESHOLD}σ bar, so the timing channel is indistinguishable from noise
+							 here and recovery is no better than guessing. Lower the noise or raise queries
+							 per position to bring the signal back.`;
 		return `
       <dl class="support-summary" aria-label="Support set comparison">
         <div class="support-row">

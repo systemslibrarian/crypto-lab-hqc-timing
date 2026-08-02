@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { PRESETS } from './data.ts';
 import {
   createRng,
   makeSecret,
@@ -330,4 +331,65 @@ describe('reproducibility', () => {
     expect(hammingWeight(makeSecret(5, 99, createRng(1)))).toBe(5); // clamped
     expect(makeSecret(0, 3, createRng(1)).length).toBe(0);
   });
+});
+
+describe('presets deliver the outcome their description promises', () => {
+	// These pin the actual defect found on 2026-08-02: the "Borderline" and
+	// "Too noisy" presets both recovered 32/32 bits on every run, so the
+	// partial-recovery and attack-fails branches the page advertises were
+	// unreachable. Sampled over many runs because the outcome is stochastic —
+	// each bound below has margin measured over 300 runs.
+	const N = 32;
+	const RUNS = 60;
+
+	function sample(preset: { weight: number; noise: number; trials: number; constantTime: boolean }) {
+		let totalBits = 0;
+		let leaks = 0;
+		let fullRecoveries = 0;
+		for (let i = 0; i < RUNS; i++) {
+			const secret = makeSecret(N, preset.weight);
+			const res = timingAttack(
+				secret,
+				{ n: N, noise: preset.noise, constantTime: preset.constantTime },
+				preset.trials,
+			);
+			totalBits += res.bitsCorrect;
+			if (didLeak(res)) leaks++;
+			if (res.bitsCorrect === N) fullRecoveries++;
+		}
+		return { meanBits: totalBits / RUNS, leakRate: leaks / RUNS, fullRate: fullRecoveries / RUNS };
+	}
+
+	function preset(id: string) {
+		const found = PRESETS.find((p) => p.id === id);
+		if (!found) throw new Error(`missing preset ${id}`);
+		return found;
+	}
+
+	it('"Easy break" really does break it', () => {
+		const { meanBits } = sample(preset('easy'));
+		expect(meanBits).toBeGreaterThan(N * 0.95);
+	});
+
+	it('"Borderline" is genuinely partial, not a guaranteed full break', () => {
+		const { meanBits, fullRate } = sample(preset('borderline'));
+		// Measured mean over 300 runs was 26.2/32 with range 16-32.
+		expect(meanBits).toBeGreaterThan(N * 0.55);
+		expect(meanBits).toBeLessThan(N * 0.95);
+		// The old values gave fullRate === 1. Occasional luck is fine; always is not.
+		expect(fullRate).toBeLessThan(0.5);
+	});
+
+	it('"Too noisy" really fails — recovery near chance and no measurable leak', () => {
+		const { meanBits, leakRate, fullRate } = sample(preset('noisy'));
+		// Chance is N/2 = 16. Measured mean over 300 runs was 16.3, leak rate 0.
+		expect(meanBits).toBeLessThan(N * 0.72);
+		expect(fullRate).toBe(0);
+		expect(leakRate).toBeLessThan(0.1);
+	});
+
+	it('"Defense holds" holds — the distinguisher measures no leak', () => {
+		const { leakRate } = sample(preset('defended'));
+		expect(leakRate).toBeLessThan(0.1);
+	});
 });
