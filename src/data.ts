@@ -133,3 +133,17 @@ export const FACTS = {
 	realSuccess: '~93%',
 	realTime: 'under a minute',
 };
+
+/**
+ * The ranges the sliders expose. Presets are written through these controls, so
+ * a preset value outside a range is silently clamped by the browser and the
+ * page quietly does something other than what the preset promises — which is
+ * exactly how the recalibrated noise values (50 and 120) ended up pinned at the
+ * old max of 12. ui.ts renders its inputs from these, and a unit test asserts
+ * every preset fits, so the two cannot drift apart again.
+ */
+export const CONTROL_RANGES = {
+	weight: { min: 2, max: 10 },
+	noise: { min: 0, max: 150 },
+	trials: { min: 10, max: 400, step: 10 },
+} as const;

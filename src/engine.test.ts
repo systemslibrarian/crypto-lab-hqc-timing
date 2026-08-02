@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PRESETS } from './data.ts';
+import { PRESETS, CONTROL_RANGES } from './data.ts';
 import {
   createRng,
   makeSecret,
@@ -392,4 +392,24 @@ describe('presets deliver the outcome their description promises', () => {
 		const { leakRate } = sample(preset('defended'));
 		expect(leakRate).toBeLessThan(0.1);
 	});
+});
+
+describe('every preset is reachable through the controls that apply it', () => {
+	// The failure this pins: the recalibrated presets set noise 50 and 120 while
+	// the noise slider was still max="12", so applyPreset() wrote a value the
+	// browser silently clamped back to 12 — exactly the value the recalibration
+	// existed to move away from. The engine tests passed because they call the
+	// engine with the PRESETS constants directly and never go through the DOM,
+	// so the suite certified behaviour the page could not reach.
+	const keys = ['weight', 'noise', 'trials'] as const;
+
+	for (const preset of PRESETS) {
+		for (const key of keys) {
+			it(`preset "${preset.id}" ${key}=${preset[key]} fits the ${key} control`, () => {
+				const { min, max } = CONTROL_RANGES[key];
+				expect(preset[key]).toBeGreaterThanOrEqual(min);
+				expect(preset[key]).toBeLessThanOrEqual(max);
+			});
+		}
+	}
 });

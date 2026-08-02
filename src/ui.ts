@@ -15,7 +15,7 @@ import {
 	type Distinguisher,
 	type AttackResult,
 } from './engine.ts';
-import { TIMELINE, DEFENSES, FACTS, PRESETS, type Preset } from './data.ts';
+import { TIMELINE, DEFENSES, FACTS, PRESETS, CONTROL_RANGES, type Preset } from './data.ts';
 
 function el<K extends keyof HTMLElementTagNameMap>(
 	tag: K,
@@ -328,7 +328,7 @@ function renderLab(): HTMLElement {
           <span class="control-help">how many bits are in the secret support</span>
         </label>
         <div class="slider-row">
-          <input id="weight" name="weight" type="range" min="2" max="10" value="5" aria-describedby="weight-val-desc" />
+          <input id="weight" name="weight" type="range" min="${CONTROL_RANGES.weight.min}" max="${CONTROL_RANGES.weight.max}" value="5" aria-describedby="weight-val-desc" />
           <output id="weight-val" class="mono-inline" for="weight" aria-live="off">5</output>
         </div>
         <span id="weight-val-desc" class="sr-only">Number of secret error positions out of 32</span>
@@ -339,7 +339,7 @@ function renderLab(): HTMLElement {
           <span class="control-help">standard deviation in time units</span>
         </label>
         <div class="slider-row">
-          <input id="noise" name="noise" type="range" min="0" max="12" value="3" step="1" aria-describedby="noise-val-desc" />
+          <input id="noise" name="noise" type="range" min="${CONTROL_RANGES.noise.min}" max="${CONTROL_RANGES.noise.max}" value="3" step="1" aria-describedby="noise-val-desc" />
           <output id="noise-val" class="mono-inline" for="noise" aria-live="off">3</output>
         </div>
         <span id="noise-val-desc" class="sr-only">Higher noise makes the timing signal harder to detect</span>
@@ -350,7 +350,7 @@ function renderLab(): HTMLElement {
           <span class="control-help">more trials average out noise</span>
         </label>
         <div class="slider-row">
-          <input id="trials" name="trials" type="range" min="10" max="400" value="120" step="10" aria-describedby="trials-val-desc" />
+          <input id="trials" name="trials" type="range" min="${CONTROL_RANGES.trials.min}" max="${CONTROL_RANGES.trials.max}" value="120" step="${CONTROL_RANGES.trials.step}" aria-describedby="trials-val-desc" />
           <output id="trials-val" class="mono-inline" for="trials" aria-live="off">120</output>
         </div>
         <span id="trials-val-desc" class="sr-only">Number of timed decode queries averaged per position</span>
