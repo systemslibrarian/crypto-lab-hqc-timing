@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4221;
+const PORT = 4650;
 const BASE = '/crypto-lab-hqc-timing/';
 
 export default defineConfig({
