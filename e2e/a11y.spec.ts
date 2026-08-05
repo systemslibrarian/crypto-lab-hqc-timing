@@ -12,13 +12,8 @@ async function revealAll(page: Page): Promise<void> {
   // Open every <details>, reveal class-toggled / [hidden] panels, and
   // neutralize animations/transitions/opacity so nothing is mid-fade
   // when axe measures contrast.
-  await page.addStyleTag({
-    content: `*, *::before, *::after {
-      animation: none !important;
-      transition: none !important;
-      opacity: 1 !important;
-    }`,
-  });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.getAnimations().every(a => a.playState !== 'running'));
   await page.evaluate(() => {
     for (const details of Array.from(document.querySelectorAll('details'))) {
       (details as HTMLDetailsElement).open = true;
@@ -45,6 +40,7 @@ async function scan(page: Page): Promise<void> {
 
 test('no WCAG A/AA violations in dark theme', async ({ page }) => {
   await page.goto('.');
+  await expect(page.locator('h1')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await revealAll(page);
   await scan(page);
@@ -52,6 +48,7 @@ test('no WCAG A/AA violations in dark theme', async ({ page }) => {
 
 test('no WCAG A/AA violations in light theme', async ({ page }) => {
   await page.goto('.');
+  await expect(page.locator('h1')).toBeVisible();
   await page.locator('#cl-theme-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await revealAll(page);
