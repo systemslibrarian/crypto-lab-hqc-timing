@@ -387,7 +387,7 @@ function renderLab(): HTMLElement {
       </div>
 
       <div class="control-group control-group--actions">
-        <button id="reroll" class="ghost-button" type="button" aria-label="Generate a new random secret and re-run">
+        <button id="reroll" class="ghost-button" type="button" aria-label="New secret: generate a new random secret and re-run">
           <span aria-hidden="true">↻</span>
           <span>New secret</span>
         </button>
