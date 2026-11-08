@@ -191,12 +191,12 @@ describe('measured leak detection', () => {
     expect(didLeak(defended)).toBe(false);
   });
 
-  it('holds at the weakest setting the sliders allow, and rarely cries wolf', () => {
+  it('detects the original noise-12 regime and rarely raises a null alarm', () => {
     // The threshold comment in engine.ts justifies 4σ over 3σ with two rates.
     // Pin both, as RATES over many independent seeds rather than as a single
     // run that would pass or fail by luck.
     //
-    // Weakest genuine-leak regime: noise 12, 10 queries per position, weight 2.
+    // Historical noise-12 regime (the current slider also permits higher noise).
     // seDiff = 12·sqrt(1/(10·2) + 1/(10·30)) ≈ 2.771, so observedZ ~ N(5.77, 1)
     // and the per-run detection probability is Φ(1.77) ≈ 0.962. Over 300 runs
     // that is 288 ± 3.3, so a floor of 270 sits ~5σ below the mean.

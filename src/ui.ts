@@ -1,3 +1,5 @@
+import { recoveryVerdict } from './verdict';
+import { renderStatistics } from './statistics-ui';
 // ui.ts — HQC timing side-channel lab UI.
 import {
 	makeSecret,
@@ -7,8 +9,6 @@ import {
 	randomSeed,
 	formatSeed,
 	analyzeDistinguisher,
-	didLeak,
-	LEAK_Z_THRESHOLD,
 	SIGNAL_GAP,
 	DECISION_MARGIN,
 	type SimParams,
@@ -489,10 +489,10 @@ function renderLab(): HTMLElement {
 				: '<span class="chart-tick chart-tick--blank" aria-hidden="true"></span>',
 		).join('');
 		const summary = params.constantTime
-			? `Bars are flat — the constant-time defense removes the signal. ${res.bitsCorrect} of ${N} bits guessed correctly, no better than chance.`
+			? `The model removes the secret-dependent timing term; noise can still vary the bars. ${res.bitsCorrect} of ${N} bits guessed correctly in this run.`
 			: `${res.bitsCorrect} of ${N} bits recovered. Bars below the timing threshold are guessed as secret-error positions.`;
 		const footnote = params.constantTime
-			? 'Constant-time: every position does the same work, so the bars are flat — nothing to threshold.'
+			? 'Constant-time model: the ideal time is identical at every position. Observed means can differ through noise.'
 			: 'Vulnerable: error positions decode faster, dropping below the threshold.';
 		return `
       <div class="timing-chart">
@@ -538,39 +538,7 @@ function renderLab(): HTMLElement {
 		const fmtSet = (a: number[]) => (a.length ? `{${a.join(', ')}}` : '{ }');
 		const pct = (res.accuracy * 100).toFixed(0);
 
-		// The verdict is decided by the MEASURED separation between the two classes,
-		// not by the constant-time checkbox. If the defense were silently broken, this
-		// line would say so instead of congratulating it.
-		const leak = didLeak(res);
-		const zTxt = Number.isFinite(res.observedZ) ? `z = ${res.observedZ.toFixed(1)}` : 'z = ∞';
-		const gapTxt = `${res.observedGap.toFixed(1)} time units (${zTxt})`;
-
-		const verdict = params.constantTime
-			? leak
-				? `<strong>Defense FAILED.</strong> Constant-time mode is on, yet the measured gap between
-					 secret and clean positions is ${gapTxt} — past the ${LEAK_Z_THRESHOLD}σ bar, so this is
-					 signal, not noise. A working constant-time decoder cannot produce this.`
-				: `Defense held — measured gap between secret and clean positions is only ${gapTxt},
-					 below the ${LEAK_Z_THRESHOLD}σ bar, i.e. consistent with zero. Recovery is no better
-					 than guessing.`
-			: res.accuracy > 0.95
-				? `Full key recovery from timing alone — measured gap ${gapTxt} against a predicted
-					 ${SIGNAL_GAP}.`
-				: res.accuracy > 0.7
-					? `Partial recovery — the leak is real (measured gap ${gapTxt} against a predicted
-						 ${SIGNAL_GAP}), but the averaging is not finishing the job. Add queries or reduce
-						 noise.`
-					: leak
-						? `Weak recovery at this noise level — the leak is still measurable (gap ${gapTxt}
-							 against a predicted ${SIGNAL_GAP}); there just are not enough queries to
-							 threshold each position reliably. Raise queries per position.`
-						: // Whether a leak survived is a measurement, not an assumption: at high
-							// noise the gap collapses into the noise entirely, and then the attack has
-							// failed rather than merely underperformed.
-							`Attack failed at this noise level — the measured gap is only ${gapTxt}, below the
-							 ${LEAK_Z_THRESHOLD}σ bar, so the timing channel is indistinguishable from noise
-							 here and recovery is no better than guessing. Lower the noise or raise queries
-							 per position to bring the signal back.`;
+		const verdict = recoveryVerdict(res, params.constantTime);
 		return `
       <dl class="support-summary" aria-label="Support set comparison">
         <div class="support-row">
@@ -596,21 +564,14 @@ function renderLab(): HTMLElement {
       </details>
       <p class="recovery-stat"><strong>${res.bitsCorrect}/${N}</strong> bits correct · ${pct}%</p>
       <p class="recovery-stat">${res.totalQueries.toLocaleString()} timed queries</p>
-      <p class="panel-copy">${verdict}</p>
+      <p class="panel-copy">${verdict.text}</p>
+      <p class="panel-copy">The gap diagnostic groups measurements using the true support for scoring, not for attacker guesses. <a href="#statistical-testing">Explore false alarms and missed detections.</a></p>
     `;
 	}
 
-	// Chip text follows the measured leak, not the checkbox. "Defended" is a claim about
-	// the timings, so it has to be earned by them.
 	function chipFor(res: AttackResult, params: SimParams): { cls: string; text: string } {
-		const leak = didLeak(res);
-		if (params.constantTime) {
-			return leak
-				? { cls: 'vs-chip vs-chip--snark', text: 'Defense FAILED' }
-				: { cls: 'vs-chip vs-chip--stark', text: 'Defended' };
-		}
-		if (res.accuracy > 0.95) return { cls: 'vs-chip vs-chip--snark', text: 'Key recovered' };
-		return { cls: 'vs-chip vs-chip--tie', text: 'Partial' };
+		const v = recoveryVerdict(res, params.constantTime);
+		return { cls: `vs-chip ${v.kind === 'alarm' || v.kind === 'full' ? 'vs-chip--snark' : 'vs-chip--tie'}`, text: v.chip };
 	}
 
 	function renderSingleResult(secret: Uint8Array, res: AttackResult, params: SimParams): void {
@@ -637,14 +598,7 @@ function renderLab(): HTMLElement {
         </div>
       </div>
     `;
-		const pct = (res.accuracy * 100).toFixed(0);
-		announce(
-			params.constantTime
-				? didLeak(res)
-					? `Attack complete. Constant-time defense FAILED: a timing gap of ${res.observedGap.toFixed(1)} time units is still measurable. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
-					: `Attack complete. Constant-time defense held, no measurable timing gap. ${res.bitsCorrect} of ${N} bits correct, ${pct}%.`
-				: `Attack complete. ${res.bitsCorrect} of ${N} bits recovered, ${pct}% accuracy, measured timing gap ${res.observedGap.toFixed(1)} time units.`,
-		);
+		announce(`Attack complete. ${res.bitsCorrect} of ${N} bits correct. ${recoveryVerdict(res, params.constantTime).text}`);
 	}
 
 	function renderCompareResult(
@@ -929,7 +883,7 @@ export function mountApp(root: HTMLDivElement): void {
 	// a sibling of <main> so its contentinfo landmark remains top level.
 	const main = el('main', 'page-main');
 	main.id = 'main-content';
-	main.append(renderHero(), renderLab(), renderTimeline(), renderDefenses());
+	main.append(renderHero(), renderLab(), renderStatistics(), renderTimeline(), renderDefenses());
 	shell.append(main, renderFooter());
 	root.appendChild(shell);
 }

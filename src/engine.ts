@@ -209,18 +209,15 @@ export function timingAttack(
 	};
 }
 
-// Separation, in standard errors, at which we call a timing gap real rather than noise.
-//
-// 4, not 3. This statistic pools every position and every query in the run, so it is a
-// very sensitive detector: even the weakest setting the sliders allow (noise 12, 10
-// queries per position, secret weight 2) still puts a genuine leak at z ~ 5.8. Meanwhile
-// a two-sided 3-sigma bar misfires on roughly 1 constant-time run in 200 -- measured at
-// 10 false alarms in 2106 runs across the full slider grid -- which would flash a
-// "Defense FAILED" banner at a learner who did nothing wrong. At 4 sigma the false-alarm
-// rate drops to ~6e-5 per run while every real leak in that grid is still caught.
+// Fixed diagnostic threshold, not a proof that a gap is or is not real.
+// Under an ideal untruncated normal null model, a two-sided 4-sigma rule has
+// nonzero false-alarm probability ~6.3e-5 per test. The simulator clips times at
+// zero, so this nominal rate is not calibrated for every slider setting.
+// Repeated looks need multiplicity/sequential controls; non-detection can miss
+// a real signal. The statistic uses known support only for post-run scoring.
 export const LEAK_Z_THRESHOLD = 4;
 
-/** Did this run actually leak? Measured from the timings, not from params.constantTime. */
+/** Did the measured diagnostic cross its threshold? A statistical alarm, not certainty. */
 export function didLeak(res: AttackResult): boolean {
 	return Math.abs(res.observedZ) >= LEAK_Z_THRESHOLD;
 }
