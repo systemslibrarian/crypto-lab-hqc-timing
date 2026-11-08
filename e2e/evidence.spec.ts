@@ -19,7 +19,7 @@ test('a real null alarm stays a qualified alarm in prose, chip and announcement'
 	await page.locator('#run').click();
 	await expect(page.locator('.recovery-out')).toContainText('z = 4.02');
 	await expect(page.locator('.recovery-out')).toContainText('false alarm');
-	await expect(page.locator('.vs-chip')).toHaveText('Threshold crossed');
+	await expect(page.locator('#lab-results .vs-chip')).toHaveText('Threshold crossed');
 	await expect(page.locator('#live-status')).toContainText('false alarm');
 	await expect(page.locator('#lab')).not.toContainText('Defense FAILED');
 });
@@ -30,7 +30,7 @@ test('31 correct bits never renders full recovery; 32 does', async ({ page }) =>
 	await page.locator('[data-preset="borderline"]').click();
 	await page.locator('#run').click();
 	await expect(page.locator('.recovery-out')).toContainText('31/32');
-	await expect(page.locator('.vs-chip')).toHaveText('Partial recovery');
+	await expect(page.locator('#lab-results .vs-chip')).toHaveText('Partial recovery');
 	await expect(page.locator('.recovery-out')).not.toContainText('Full toy-key');
 	await slider(page, 'noise', 0);
 	await page.locator('#run').click();
@@ -52,6 +52,9 @@ test('correction lowers family alarms, and changing settings retires simulation 
 	await page.locator('#stats-samples').focus();
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('.stats-observed')).toContainText('Settings changed');
+	await slider(page, 'stats-tests', 100);
+	await page.locator('#stats-alpha').selectOption('0.001');
+	await expect(page.locator('[data-stat="alpha"]')).toHaveText('0.0010%');
 });
 
 for (const theme of ['dark', 'light']) {

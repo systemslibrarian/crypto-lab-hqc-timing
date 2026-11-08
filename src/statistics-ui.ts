@@ -51,7 +51,7 @@ export function renderStatistics(): HTMLElement {
 	const predictions = section.querySelector<HTMLElement>('.stats-predictions')!;
 	const observed = section.querySelector<HTMLElement>('.stats-observed')!;
 	const read = (): TestPlan => ({ effect: Number(effect.value), samples: Number(samples.value), alpha: Number(alpha.value), tests: Number(tests.value), bonferroni: correction.checked });
-	const percent = (n: number) => `${(100 * n).toFixed(2)}%`;
+	const percent = (n: number) => `${(100 * n).toFixed(n > 0 && n < 0.0001 ? 4 : 2)}%`;
 	function paint() {
 		for (const input of [effect, samples, tests]) section.querySelector(`output[for="${input.id}"]`)!.textContent = input.value;
 		const p = read(), a = analyzeTestPlan(p);
@@ -72,5 +72,6 @@ export function renderStatistics(): HTMLElement {
 		observed.textContent = `Simulated with seed ${seed.value}: ${r.falseFamilies}/${r.repetitions} all-null families had at least one false alarm (${percent(r.falseFamilies / r.repetitions)}). Separately, ${r.detections}/${r.repetitions} single comparisons ${p.effect === 0 ? 'raised a false alarm' : 'detected the selected effect'}; ${r.misses}/${r.repetitions} ${p.effect === 0 ? 'raised no alarm' : 'missed it'}. Finite simulated counts fluctuate around the model predictions.`;
 	});
 	paint();
+	observed.textContent = 'Run the experiment to compare simulated counts with the predictions. Percentages are rounded.';
 	return section;
 }
