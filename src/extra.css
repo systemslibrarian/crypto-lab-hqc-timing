@@ -1115,3 +1115,28 @@
   .control-group--actions { grid-column: auto; }
   .control-group--toggle { grid-column: span 4; }
 }
+.stats-controls {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+	gap: 1.2rem;
+	margin: 1.5rem 0;
+}
+.stats-controls label { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.stats-controls input, .stats-controls select, .stats-controls button {
+	font: inherit; max-width: 100%; min-height: 44px;
+}
+.stats-controls input[type="number"], .stats-controls select {
+	color: var(--ink); background: var(--input-bg); border: 1px solid currentColor; padding: .5rem;
+}
+.stats-controls .stats-check { flex-direction: row; align-items: center; }
+.stats-controls button { color: inherit; background: transparent; border: 1px solid currentColor; border-radius: .4rem; padding: .6rem; cursor: pointer; }
+.stats-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 1rem; }
+.stats-metric { border: 1px solid currentColor; border-radius: .5rem; padding: 1rem; }
+.stats-metric strong, .stats-metric span { display: block; }
+.stats-metric span { font-size: 1.6rem; margin: .5rem 0; font-variant-numeric: tabular-nums; }
+.stats-track { height: .6rem; border: 1px solid currentColor; }
+.stats-track div { height: 100%; background: currentColor; }
+.stats-section p, .stats-section code { overflow-wrap: anywhere; }
+.stats-section details { margin-top: 1rem; }
+.stats-section summary { cursor: pointer; min-height: 44px; }
+.stats-section :focus-visible { outline: 3px solid currentColor; outline-offset: 4px; }

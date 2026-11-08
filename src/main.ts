@@ -8,7 +8,7 @@ const secret = makeSecret(32, 5);
 const vuln = timingAttack(secret, { n: 32, noise: 2, constantTime: false }, 100);
 const safe = timingAttack(secret, { n: 32, noise: 2, constantTime: true }, 100);
 console.log('Vulnerable decoder    -> recovery accuracy:', (vuln.accuracy * 100).toFixed(0) + '%', '(' + vuln.bitsCorrect + '/32 bits)');
-console.log('Constant-time decoder -> recovery accuracy:', (safe.accuracy * 100).toFixed(0) + '%', '(no usable signal)');
+console.log('Constant-time decoder -> recovery accuracy:', (safe.accuracy * 100).toFixed(0) + '%', '(constant-time model; observed scores vary)');
 console.log('Queries used per attack:', vuln.totalQueries.toLocaleString());
 console.groupEnd();
 
