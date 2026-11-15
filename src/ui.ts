@@ -57,7 +57,7 @@ function renderHero(): HTMLElement {
       </div>
       <aside class="cl-hero-why" aria-label="Why it matters">
         <span class="cl-hero-why-label">WHY IT MATTERS</span>
-        <p class="cl-hero-why-text">A post-quantum scheme can be mathematically unbreakable yet hand over its secret key because the code runs a hair slower on some inputs. The real 2020 attack recovered an HQC key in under a minute — proof that implementations, not just math, must be secure.</p>
+        <p class="cl-hero-why-text">A post-quantum scheme can have no known attack on its mathematics yet hand over its secret key because the code runs a hair slower on some inputs. The real 2020 attack recovered an HQC key in under a minute — proof that implementations, not just math, must be secure.</p>
       </aside>
     </header>
     <details class="why-details">
