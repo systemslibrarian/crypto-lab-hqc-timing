@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { auditControlNames, formatControlNameFailures } from './control-names';
 import { expect, test, type Page } from '@playwright/test';
 
 async function slider(page: Page, id: string, value: number) {
@@ -66,6 +67,9 @@ for (const theme of ['dark', 'light']) {
 		await page.getByRole('button', { name: 'Run 2,000 synthetic experiments' }).click();
 		const violations = (await new AxeBuilder({ page }).include('#statistical-testing').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations;
 		expect(violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([]);
+		// axe's `label` rule accepts a bare `placeholder` as an accessible name, so a
+		// deleted label can leave this gate green. See `control-names.ts`.
+		expect(formatControlNameFailures(await auditControlNames(page)), 'form controls named only by placeholder/title').toEqual([]);
 		expect(await page.locator('#statistical-testing').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
 	});
 }
