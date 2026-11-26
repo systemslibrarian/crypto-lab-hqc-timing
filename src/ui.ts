@@ -249,8 +249,9 @@ function distinguisherMarkup(d: Distinguisher): string {
       </p>
       <p class="dist-formula">P(wrong bit) = Φ(−z), &nbsp; z = margin ⁄ (σ⁄√N) = t·√N ⁄ σ</p>
       <p>
-        Because separation grows only as <span class="mono-inline">√N</span>, halving the noise floor
-        costs <em>four times</em> the queries — the defining economics of a timing attack. Constant-time
+        Because separation improves only as <span class="mono-inline">√N</span>, doubling the noise
+        requires <em>four times</em> the queries to preserve the same z; halving the noise requires
+        one-quarter as many. Constant-time
         decoding sets <span class="mono-inline">gap = 0</span>, so <span class="mono-inline">z = 0</span>
         and <span class="mono-inline">Φ(0) = ½</span>: pure chance, at any query count.
       </p>

@@ -9,6 +9,15 @@ async function slider(page: Page, id: string, value: number) {
 	}, value);
 }
 
+test('query-scaling explanation follows z = t·√N/σ', async ({ page }) => {
+	await page.goto('.');
+	await page.getByText('The math', { exact: true }).click();
+	const math = page.locator('.dist-math');
+	await expect(math).toContainText('doubling the noise requires four times the queries');
+	await expect(math).toContainText('halving the noise requires one-quarter as many');
+	await expect(math).not.toContainText('halving the noise floor costs four times');
+});
+
 test('a real null alarm stays a qualified alarm in prose, chip and announcement', async ({ page }) => {
 	await page.goto('.');
 	// Override only after startup's unseeded self-test; the attack then uses its own RNGs.
